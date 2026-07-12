@@ -1,14 +1,18 @@
 # auto-form
 
-お問い合わせフォームへの自動営業ツール。対象企業のフォームURLを読み込み、テンプレートの文面を自動入力（オプションで送信）し、結果を記録する。
+お問い合わせフォームへの自動営業ツール。Googleスプレッドシートをマスターに、
+対象企業のフォームを一括で開いて自動入力し、人が確認・送信した結果をスプレッドシートへ自動で記録する。
 
 ## 構成
 
-- `data/targets.csv` — 対象リスト（企業名・フォームURL・ステータス・備考）
-- `data/templates/*.json` — 営業文面テンプレート（会社名・氏名・連絡先・件名・本文）
-- `data/results.csv` — 送信結果ログ（実行時に自動生成、gitでは追跡しない）
-- `src/lib/formSubmitter.ts` — フォーム項目をラベル/name/placeholderのキーワードから推測して入力
-- `src/index.ts` — CLIエントリーポイント
+- Googleスプレッドシート — 対象企業リスト・フォーム営業履歴・備考・商談状況のマスター
+- `data/templates/*.json` — 営業文面テンプレート(会社名・氏名・連絡先・件名・本文)
+- `src/lib/targetSelection.ts` — スプレッドシートの内容から「今送るべき対象」を選ぶロジック
+- `src/lib/formDiscovery.ts` — 企業のトップページからお問い合わせフォームのURLを自動探索
+- `src/lib/formSubmitter.ts` — フォーム項目をラベル/name/placeholderのキーワードから推測して入力し、入力状況をバナー表示
+- `src/lib/completionCheck.ts` — 送信後のページ状態から成功/要確認を判定
+- `src/lib/sheetsClient.ts` — Google Sheets APIとの読み書き
+- `src/index.ts` — CLIエントリーポイント(バッチ実行)
 
 ## セットアップ
 
@@ -17,22 +21,28 @@ npm install
 npm run playwright:install
 ```
 
+1. Google Cloudでサービスアカウントを作成し、Google Sheets APIを有効化する
+2. 対象スプレッドシートをサービスアカウントのメールアドレスに編集者権限で共有する
+3. サービスアカウントのJSONキーを `credentials/google-service-account.json` に置く
+4. `.env.example` を `.env` にコピーし、`GOOGLE_SERVICE_ACCOUNT_KEY_PATH` と `GOOGLE_SHEET_ID` を設定する
+5. スプレッドシートのヘッダー行に「フォームURL」列を追加する
+
 ## 使い方
 
 ```bash
-# 入力のみ確認（送信ボタンは押さない、既定動作）
-npm run dev -- --targets data/targets.csv --template data/templates/default.json
+# 既定20件のバッチを開く
+npm run dev
 
-# 送信まで自動実行
-npm run dev -- --submit
-
-# ブラウザを表示して動作確認
-npm run dev -- --headed
+# バッチサイズを指定する
+npm run dev -- --batch-size 10
 ```
+
+タブが開いたら、各タブを順番に確認し、キャプチャ対応・送信ボタンのクリックを人手で行う。
+すべて終わったらターミナルでEnterキーを押すと、各タブの送信結果を判定してスプレッドシートに記録する。
 
 ## 注意事項
 
-- フォーム構造はサイトごとに異なるため、フィールドの自動検出には限界がある。未検出フィールドは実行時にログ出力される。
-- `--submit` を付けない限り送信ボタンはクリックされず、入力結果の確認のみ行われる。
+- フォーム構造はサイトごとに異なるため、フィールドの自動検出・送信結果の判定には限界がある。判定できない場合は備考に「要確認」と記録されるので、あとで見直すこと。
+- 送信ボタンのクリックや「私はロボットではありません」等の対応は自動化せず、必ず人が行う。
 - 送信先サイトの利用規約やスクレイピング/自動送信に関するポリシーを事前に確認すること。
-- 過度な連続アクセスは相手サーバーに負荷をかけるため、対象件数や実行間隔に配慮すること。
+- 過度な連続アクセスは相手サーバーに負荷をかけるため、バッチサイズや実行間隔に配慮すること。

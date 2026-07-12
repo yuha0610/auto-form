@@ -3,7 +3,6 @@ dist/
 .env
 .env.*
 !.env.example
-data/results/*.csv
 *.log
 .DS_Store
 credentials/
