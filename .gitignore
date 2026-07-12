@@ -5,3 +5,6 @@ dist/
 data/results/*.csv
 *.log
 .DS_Store
+credentials/
+test-results/
+playwright-report/
