@@ -71,3 +71,41 @@ export async function fillForm(page: Page, template: Template): Promise<FillResu
 
   return { filledFields, missingFields };
 }
+
+const FIELD_LABELS: Record<string, string> = {
+  senderCompany: "会社名",
+  senderName: "氏名",
+  senderEmail: "メール",
+  senderPhone: "電話",
+  subject: "件名",
+  message: "本文",
+};
+
+export async function injectFillBanner(
+  page: Page,
+  filledFields: string[],
+  missingFields: string[],
+): Promise<void> {
+  const summary = [
+    ...filledFields.map((field) => `${FIELD_LABELS[field] ?? field}○`),
+    ...missingFields.map((field) => `${FIELD_LABELS[field] ?? field}✗`),
+  ].join(" ");
+
+  await page.evaluate((text) => {
+    const banner = document.createElement("div");
+    banner.textContent = `自動入力: ${text}`;
+    banner.setAttribute("data-auto-form-banner", "true");
+    Object.assign(banner.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      zIndex: "999999",
+      background: "#222",
+      color: "#fff",
+      padding: "6px 12px",
+      fontSize: "12px",
+      fontFamily: "sans-serif",
+    });
+    document.body.prepend(banner);
+  }, summary);
+}

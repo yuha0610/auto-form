@@ -2,6 +2,9 @@ node_modules/
 dist/
 .env
 .env.*
-data/results/*.csv
+!.env.example
 *.log
 .DS_Store
+credentials/
+test-results/
+playwright-report/
