@@ -1,0 +1,9 @@
+{
+  "name": "default",
+  "senderCompany": "自社株式会社",
+  "senderName": "営業太郎",
+  "senderEmail": "sales@example.com",
+  "senderPhone": "03-0000-0000",
+  "subject": "貴社サービスに関するご提案",
+  "message": "突然のご連絡失礼いたします。\n貴社の事業拡大に貢献できるサービスのご案内でご連絡いたしました。\nご興味がございましたら、詳細をご案内させていただきます。"
+}
