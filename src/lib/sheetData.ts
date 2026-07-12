@@ -20,8 +20,13 @@ export function appendNote(existing: string, addition: string): string {
   return trimmed ? `${trimmed} / ${addition}` : addition;
 }
 
-function findColumnIndex(headerRow: string[], columnName: string): number {
-  const index = headerRow.indexOf(columnName);
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export function findColumnIndex(headerRow: string[], columnName: string): number {
+  const target = normalizeWhitespace(columnName);
+  const index = headerRow.findIndex((header) => normalizeWhitespace(header) === target);
   if (index === -1) {
     throw new Error(`列が見つかりません: ${columnName}`);
   }

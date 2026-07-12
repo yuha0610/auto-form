@@ -1,5 +1,5 @@
 import { google, type sheets_v4 } from "googleapis";
-import { columnIndexToLetter } from "./sheetData.js";
+import { columnIndexToLetter, findColumnIndex } from "./sheetData.js";
 import type { RawSheetData } from "./sheetData.js";
 
 export async function createSheetsClient(): Promise<sheets_v4.Sheets> {
@@ -48,10 +48,7 @@ export async function writeCells(
   headerRow: string[],
 ): Promise<void> {
   const data = writes.map((write) => {
-    const colIndex = headerRow.indexOf(write.columnName);
-    if (colIndex === -1) {
-      throw new Error(`列が見つかりません: ${write.columnName}`);
-    }
+    const colIndex = findColumnIndex(headerRow, write.columnName);
     const colLetter = columnIndexToLetter(colIndex);
     return {
       range: `${sheetName}!${colLetter}${write.rowIndex}`,
