@@ -58,19 +58,23 @@ program
     const raw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
     const rows = parseSheetRows(raw);
 
-    const batch = selectBatch(rows, Number(opts.batchSize), new Date());
-    if (batch.length === 0) {
+    const candidates = selectBatch(rows, rows.length, new Date());
+    if (candidates.length === 0) {
       console.log("送信対象の企業がありません。");
       return;
     }
 
-    console.log(`${batch.length}件のタブを開きます...`);
+    const desiredBatchSize = Number(opts.batchSize);
+    console.log(`最大${desiredBatchSize}件のタブを開きます...`);
 
     const browser = await chromium.launch({ headless: false });
     try {
       const opened: { target: EligibleTarget; page: Page; formUrl: string; discoveredUrl?: string }[] = [];
+      const outcomeUpdates: OutcomeUpdate[] = [];
 
-      for (const target of batch) {
+      for (const target of candidates) {
+        if (opened.length >= desiredBatchSize) break;
+
         const page = await browser.newPage();
         let formUrl = target.row.formUrl;
 
@@ -82,6 +86,13 @@ program
             const discovered = await findContactFormUrl(page);
             if (!discovered) {
               console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
+              outcomeUpdates.push({
+                rowIndex: target.row.rowIndex,
+                attemptNumber: target.attemptNumber,
+                outcome: "failed",
+                existingNote: target.row.note,
+                failureReason: "フォーム無(要確認)",
+              });
               await page.close();
               continue;
             }
@@ -94,6 +105,13 @@ program
           opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
         } catch (error) {
           console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
+          outcomeUpdates.push({
+            rowIndex: target.row.rowIndex,
+            attemptNumber: target.attemptNumber,
+            outcome: "failed",
+            existingNote: target.row.note,
+            failureReason: String(error),
+          });
           await page.close();
         }
       }
@@ -104,7 +122,6 @@ program
       );
       rl.close();
 
-      const outcomeUpdates: OutcomeUpdate[] = [];
       for (const entry of opened) {
         try {
           const outcome = await checkSubmissionOutcome(entry.page, entry.formUrl);
