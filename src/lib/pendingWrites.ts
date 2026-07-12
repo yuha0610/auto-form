@@ -18,7 +18,11 @@ export async function loadPendingWrites(
   for (const file of files) {
     const path = join(dir, file);
     const content = await readFile(path, "utf-8");
-    results.push({ path, writes: JSON.parse(content) as CellWrite[] });
+    try {
+      results.push({ path, writes: JSON.parse(content) as CellWrite[] });
+    } catch (error) {
+      console.warn(`Failed to parse pending-write file: ${path}`, error);
+    }
   }
   return results;
 }
