@@ -15,7 +15,7 @@ export async function checkSubmissionOutcome(
     return "success";
   }
 
-  const bodyText = (await page.evaluate(() => document.body.innerText || "")).toLowerCase();
+  const bodyText = (await page.locator("body").innerText().catch(() => "")).toLowerCase();
   const matched = SUCCESS_KEYWORDS.some((keyword) => bodyText.includes(keyword.toLowerCase()));
   return matched ? "success" : "uncertain";
 }
