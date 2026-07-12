@@ -15,6 +15,7 @@ import {
   writeCells,
 } from "./lib/sheetsClient.js";
 import { buildUpdates, type OutcomeUpdate } from "./lib/updates.js";
+import { partitionByRowIntegrity } from "./lib/rowIntegrity.js";
 import {
   savePendingWrites,
   loadPendingWrites,
@@ -71,6 +72,7 @@ program
     try {
       const opened: { target: EligibleTarget; page: Page; formUrl: string; discoveredUrl?: string }[] = [];
       const outcomeUpdates: OutcomeUpdate[] = [];
+      const expectedCompanyName = new Map<number, string>();
 
       for (const target of candidates) {
         if (opened.length >= desiredBatchSize) break;
@@ -93,6 +95,7 @@ program
                 existingNote: target.row.note,
                 failureReason: "フォーム無(要確認)",
               });
+              expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
               await page.close();
               continue;
             }
@@ -112,6 +115,7 @@ program
             existingNote: target.row.note,
             failureReason: String(error),
           });
+          expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
         }
       }
@@ -132,6 +136,7 @@ program
             existingNote: entry.target.row.note,
             formUrl: entry.discoveredUrl,
           });
+          expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
         } catch (error) {
           console.warn(`[${entry.target.row.companyName}] 送信結果の確認に失敗しました: ${String(error)}`);
           outcomeUpdates.push({
@@ -141,15 +146,44 @@ program
             existingNote: entry.target.row.note,
             formUrl: entry.discoveredUrl,
           });
+          expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
         } finally {
           await entry.page.close().catch(() => {});
         }
       }
 
-      const writes = outcomeUpdates.flatMap((update) => buildUpdates(update, new Date()));
+      const freshRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
+      const freshRows = parseSheetRows(freshRaw);
+      const actualCompanyName = new Map(freshRows.map((r) => [r.rowIndex, r.companyName]));
+
+      const { valid, mismatched } = partitionByRowIntegrity(
+        outcomeUpdates,
+        expectedCompanyName,
+        actualCompanyName,
+      );
+
+      if (mismatched.length > 0) {
+        for (const { item, expected, actual } of mismatched) {
+          console.warn(
+            `[行${item.rowIndex}] 書き込みをスキップしました: 期待した企業名「${expected ?? "(不明)"}」に対し` +
+              `現在の行の企業名は「${actual ?? "(行が見つかりません)"}」でした。` +
+              `バッチ実行中にスプレッドシートが編集(ソート・行の追加削除など)された可能性があるため、` +
+              `この結果は安全に書き込めません。`,
+          );
+        }
+      }
+
+      const writes = valid.flatMap((update) => buildUpdates(update, new Date()));
       try {
-        await writeCells(sheetsClient, spreadsheetId, sheetName, writes, raw.headerRow);
-        console.log(`結果をスプレッドシートに記録しました(${outcomeUpdates.length}件)。`);
+        await writeCells(sheetsClient, spreadsheetId, sheetName, writes, freshRaw.headerRow);
+        if (mismatched.length > 0) {
+          console.log(
+            `結果をスプレッドシートに記録しました(${valid.length}件、` +
+              `行ズレのため${mismatched.length}件はスキップしました)。`,
+          );
+        } else {
+          console.log(`結果をスプレッドシートに記録しました(${valid.length}件)。`);
+        }
       } catch (error) {
         const path = await savePendingWrites(PENDING_WRITES_DIR, writes);
         console.warn(
