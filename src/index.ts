@@ -67,67 +67,81 @@ program
     console.log(`${batch.length}件のタブを開きます...`);
 
     const browser = await chromium.launch({ headless: false });
-    const opened: { target: EligibleTarget; page: Page; formUrl: string; discoveredUrl?: string }[] = [];
-
-    for (const target of batch) {
-      const page = await browser.newPage();
-      let formUrl = target.row.formUrl;
-
-      try {
-        if (formUrl) {
-          await page.goto(formUrl, { waitUntil: "domcontentloaded" });
-        } else {
-          await page.goto(target.row.companyUrl, { waitUntil: "domcontentloaded" });
-          const discovered = await findContactFormUrl(page);
-          if (!discovered) {
-            console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
-            await page.close();
-            continue;
-          }
-          await page.goto(discovered, { waitUntil: "domcontentloaded" });
-          formUrl = discovered;
-        }
-
-        const { filledFields, missingFields } = await fillForm(page, template);
-        await injectFillBanner(page, filledFields, missingFields);
-        opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
-      } catch (error) {
-        console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
-        await page.close();
-      }
-    }
-
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    await rl.question(
-      `\n${opened.length}件のタブを開きました。確認・送信が終わったらEnterキーを押してください...`,
-    );
-    rl.close();
-
-    const outcomeUpdates: OutcomeUpdate[] = [];
-    for (const entry of opened) {
-      const outcome = await checkSubmissionOutcome(entry.page, entry.formUrl);
-      outcomeUpdates.push({
-        rowIndex: entry.target.row.rowIndex,
-        attemptNumber: entry.target.attemptNumber,
-        outcome,
-        existingNote: entry.target.row.note,
-        formUrl: entry.discoveredUrl,
-      });
-      await entry.page.close();
-    }
-
-    await browser.close();
-
-    const writes = outcomeUpdates.flatMap((update) => buildUpdates(update, new Date()));
     try {
-      await writeCells(sheetsClient, spreadsheetId, sheetName, writes, raw.headerRow);
-      console.log(`結果をスプレッドシートに記録しました(${outcomeUpdates.length}件)。`);
-    } catch (error) {
-      const path = await savePendingWrites(PENDING_WRITES_DIR, writes);
-      console.warn(
-        `スプレッドシートへの書き込みに失敗しました: ${String(error)}\n` +
-          `結果は ${path} に保存しました。次回起動時に自動で再送されます。`,
+      const opened: { target: EligibleTarget; page: Page; formUrl: string; discoveredUrl?: string }[] = [];
+
+      for (const target of batch) {
+        const page = await browser.newPage();
+        let formUrl = target.row.formUrl;
+
+        try {
+          if (formUrl) {
+            await page.goto(formUrl, { waitUntil: "domcontentloaded" });
+          } else {
+            await page.goto(target.row.companyUrl, { waitUntil: "domcontentloaded" });
+            const discovered = await findContactFormUrl(page);
+            if (!discovered) {
+              console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
+              await page.close();
+              continue;
+            }
+            await page.goto(discovered, { waitUntil: "domcontentloaded" });
+            formUrl = discovered;
+          }
+
+          const { filledFields, missingFields } = await fillForm(page, template);
+          await injectFillBanner(page, filledFields, missingFields);
+          opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
+        } catch (error) {
+          console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
+          await page.close();
+        }
+      }
+
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      await rl.question(
+        `\n${opened.length}件のタブを開きました。確認・送信が終わったらEnterキーを押してください...`,
       );
+      rl.close();
+
+      const outcomeUpdates: OutcomeUpdate[] = [];
+      for (const entry of opened) {
+        try {
+          const outcome = await checkSubmissionOutcome(entry.page, entry.formUrl);
+          outcomeUpdates.push({
+            rowIndex: entry.target.row.rowIndex,
+            attemptNumber: entry.target.attemptNumber,
+            outcome,
+            existingNote: entry.target.row.note,
+            formUrl: entry.discoveredUrl,
+          });
+        } catch (error) {
+          console.warn(`[${entry.target.row.companyName}] 送信結果の確認に失敗しました: ${String(error)}`);
+          outcomeUpdates.push({
+            rowIndex: entry.target.row.rowIndex,
+            attemptNumber: entry.target.attemptNumber,
+            outcome: "uncertain",
+            existingNote: entry.target.row.note,
+            formUrl: entry.discoveredUrl,
+          });
+        } finally {
+          await entry.page.close().catch(() => {});
+        }
+      }
+
+      const writes = outcomeUpdates.flatMap((update) => buildUpdates(update, new Date()));
+      try {
+        await writeCells(sheetsClient, spreadsheetId, sheetName, writes, raw.headerRow);
+        console.log(`結果をスプレッドシートに記録しました(${outcomeUpdates.length}件)。`);
+      } catch (error) {
+        const path = await savePendingWrites(PENDING_WRITES_DIR, writes);
+        console.warn(
+          `スプレッドシートへの書き込みに失敗しました: ${String(error)}\n` +
+            `結果は ${path} に保存しました。次回起動時に自動で再送されます。`,
+        );
+      }
+    } finally {
+      await browser.close();
     }
   });
 
