@@ -3,8 +3,9 @@ import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import { chromium, type Page } from "playwright";
 import { loadTemplate } from "./lib/templates.js";
-import { fillForm, injectFillBanner } from "./lib/formSubmitter.js";
+import { injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl } from "./lib/formDiscovery.js";
+import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
@@ -105,8 +106,9 @@ program
             formUrl = discovered;
           }
 
-          const { filledFields, missingFields } = await fillForm(page, template);
+          const { filledFields, missingFields, navigatedTo } = await fillFormWithDiscovery(page, template);
           await injectFillBanner(page, filledFields, missingFields);
+          if (navigatedTo) formUrl = navigatedTo;
           opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
         } catch (error) {
           console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
@@ -115,7 +117,7 @@ program
             attemptNumber: target.attemptNumber,
             outcome: "failed",
             existingNote: target.row.note,
-            failureReason: String(error),
+            failureReason: "読み込み失敗(要確認)",
           });
           expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
