@@ -6,6 +6,7 @@ import { loadTemplate } from "./lib/templates.js";
 import { fillForm, injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl } from "./lib/formDiscovery.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
+import { notifyBatchReady } from "./lib/notify.js";
 import { selectBatch } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
@@ -118,6 +119,10 @@ program
           expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
         }
+      }
+
+      if (opened.length > 0) {
+        await notifyBatchReady(opened.length);
       }
 
       const rl = createInterface({ input: process.stdin, output: process.stdout });
