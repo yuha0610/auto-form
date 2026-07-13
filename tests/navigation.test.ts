@@ -125,3 +125,28 @@ test("リトライ可能なエラーで2回とも失敗した場合はNavigation
   expect((error as InstanceType<typeof NavigationError>).label).toBe("接続エラー(再試行済・要確認)");
   expect(callCount).toBe(2);
 });
+
+test("1回目が接続エラー・2回目がタイムアウトの場合はリトライ側のエラーを再分類してNavigationErrorを投げる", async ({
+  page,
+}) => {
+  let callCount = 0;
+  await page.route("https://example.test/retry-then-timeout", async (route) => {
+    callCount++;
+    if (callCount === 1) {
+      await route.abort("connectionreset");
+    } else {
+      await new Promise(() => {});
+    }
+  });
+
+  const error = await gotoWithRetry(
+    page,
+    "https://example.test/retry-then-timeout",
+    { waitUntil: "domcontentloaded", timeout: 500 },
+    10,
+  ).catch((e) => e);
+
+  expect(error).toBeInstanceOf(NavigationError);
+  expect((error as InstanceType<typeof NavigationError>).label).toBe("タイムアウト(再試行済・要確認)");
+  expect(callCount).toBe(2);
+});
