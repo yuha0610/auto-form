@@ -198,9 +198,13 @@ program
         );
       }
 
-      const countRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
-      const countRows = parseSheetRows(countRaw);
-      await notifySlackDailyCount(countSentToday(countRows, new Date()));
+      try {
+        const countRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
+        const countRows = parseSheetRows(countRaw);
+        await notifySlackDailyCount(countSentToday(countRows, new Date()));
+      } catch (error) {
+        console.warn(`今日の送信件数の集計に失敗しました: ${String(error)}`);
+      }
     } finally {
       await browser.close();
     }
