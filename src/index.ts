@@ -7,6 +7,7 @@ import { fillForm, injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl } from "./lib/formDiscovery.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
+import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
 import { selectBatch } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
@@ -196,6 +197,10 @@ program
             `結果は ${path} に保存しました。次回起動時に自動で再送されます。`,
         );
       }
+
+      const countRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
+      const countRows = parseSheetRows(countRaw);
+      await notifySlackDailyCount(countSentToday(countRows, new Date()));
     } finally {
       await browser.close();
     }
