@@ -6,6 +6,7 @@ import { loadTemplate } from "./lib/templates.js";
 import { injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl } from "./lib/formDiscovery.js";
 import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
+import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
@@ -85,9 +86,9 @@ program
 
         try {
           if (formUrl) {
-            await page.goto(formUrl, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, formUrl, { waitUntil: "domcontentloaded" });
           } else {
-            await page.goto(target.row.companyUrl, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, target.row.companyUrl, { waitUntil: "domcontentloaded" });
             const discovered = await findContactFormUrl(page);
             if (!discovered) {
               console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
@@ -102,7 +103,7 @@ program
               await page.close();
               continue;
             }
-            await page.goto(discovered, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, discovered, { waitUntil: "domcontentloaded" });
             formUrl = discovered;
           }
 
@@ -111,13 +112,15 @@ program
           if (navigatedTo) formUrl = navigatedTo;
           opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
         } catch (error) {
+          const failureReason =
+            error instanceof NavigationError ? error.label : "読み込み失敗(要確認)";
           console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
           outcomeUpdates.push({
             rowIndex: target.row.rowIndex,
             attemptNumber: target.attemptNumber,
             outcome: "failed",
             existingNote: target.row.note,
-            failureReason: "読み込み失敗(要確認)",
+            failureReason,
           });
           expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
