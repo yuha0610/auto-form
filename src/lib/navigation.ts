@@ -1,3 +1,5 @@
+import type { Page } from "playwright";
+
 export type GotoErrorCategory = "dns" | "cert" | "timeout" | "connection" | "unknown";
 
 export interface GotoErrorClassification {
@@ -32,4 +34,43 @@ export function classifyGotoError(error: unknown): GotoErrorClassification {
     return { category: "connection", retryable: true, label: "接続エラー(再試行済・要確認)" };
   }
   return { category: "unknown", retryable: false, label: "読み込み失敗(要確認)" };
+}
+
+export class NavigationError extends Error {
+  readonly label: string;
+  readonly cause: unknown;
+
+  constructor(label: string, cause: unknown) {
+    super(label);
+    this.name = "NavigationError";
+    this.label = label;
+    this.cause = cause;
+  }
+}
+
+const RETRY_DELAY_MS = 3000;
+
+export async function gotoWithRetry(
+  page: Page,
+  url: string,
+  options: Parameters<Page["goto"]>[1],
+  retryDelayMs: number = RETRY_DELAY_MS,
+): Promise<void> {
+  try {
+    await page.goto(url, options);
+  } catch (error) {
+    const classification = classifyGotoError(error);
+    if (!classification.retryable) {
+      throw new NavigationError(classification.label, error);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+
+    try {
+      await page.goto(url, options);
+    } catch (retryError) {
+      const retryClassification = classifyGotoError(retryError);
+      throw new NavigationError(retryClassification.label, retryError);
+    }
+  }
 }
