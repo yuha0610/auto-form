@@ -36,6 +36,27 @@ export function isSkipped(row: SheetRowData): boolean {
   return SKIP_MARKERS.some((marker) => row.note.includes(marker));
 }
 
+export interface SkipSummary {
+  reason: string;
+  companies: string[];
+}
+
+/** スキップされた行を、備考に含まれるスキップ理由ごとに集計する。 */
+export function summarizeSkipped(rows: SheetRowData[]): SkipSummary[] {
+  const companiesByReason = new Map<string, string[]>();
+  for (const row of rows) {
+    const reason = SKIP_MARKERS.find((marker) => row.note.includes(marker));
+    if (!reason) continue;
+    if (!companiesByReason.has(reason)) companiesByReason.set(reason, []);
+    companiesByReason.get(reason)!.push(row.companyName);
+  }
+
+  return SKIP_MARKERS.filter((reason) => companiesByReason.has(reason)).map((reason) => ({
+    reason,
+    companies: companiesByReason.get(reason)!,
+  }));
+}
+
 export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | null {
   if (row.dealStatus.trim() !== "") return null;
   if (isSkipped(row)) return null;

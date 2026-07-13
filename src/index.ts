@@ -10,7 +10,7 @@ import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
-import { selectBatch, dedupeByCompanyName } from "./lib/targetSelection.js";
+import { selectBatch, dedupeByCompanyName, summarizeSkipped } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
   createSheetsClient,
@@ -36,15 +36,32 @@ program
   .description("お問い合わせフォームへの自動営業ツール(Googleスプレッドシート連携版)")
   .option("-m, --template <path>", "文面テンプレートJSON", "data/templates/default.json")
   .option("-b, --batch-size <n>", "1回のバッチで開くタブ数", "20")
+  .option("--skip-report", "スキップ理由ごとに件数・企業名を集計して表示する(送信は行わない)")
   .action(async (opts) => {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
     if (!spreadsheetId) {
       throw new Error("環境変数 GOOGLE_SHEET_ID が設定されていません");
     }
 
-    const template = await loadTemplate(opts.template);
     const sheetsClient = await createSheetsClient();
     const sheetName = await getFirstSheetName(sheetsClient, spreadsheetId);
+
+    if (opts.skipReport) {
+      const raw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
+      const rows = parseSheetRows(raw);
+      const summary = summarizeSkipped(rows);
+      if (summary.length === 0) {
+        console.log("スキップされた企業はありません。");
+      } else {
+        for (const { reason, companies } of summary) {
+          console.log(`\n${reason}: ${companies.length}件`);
+          for (const name of companies) console.log(`  - ${name}`);
+        }
+      }
+      return;
+    }
+
+    const template = await loadTemplate(opts.template);
 
     const pending = await loadPendingWrites(PENDING_WRITES_DIR);
     if (pending.length > 0) {
