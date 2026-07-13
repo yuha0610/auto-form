@@ -54,6 +54,36 @@ export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | 
   return daysBetween(second, today) >= FOLLOW_UP_INTERVAL_DAYS ? 3 : null;
 }
 
+function normalizeCompanyName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function attemptProgress(row: SheetRowData): number {
+  if (row.thirdSentAt) return 3;
+  if (row.secondSentAt) return 2;
+  if (row.firstSentAt) return 1;
+  return 0;
+}
+
+/**
+ * 同一企業名の行が複数存在する場合、送信が最も進んでいる行だけを残す。
+ * (行の重複により同じ企業に二重送信してしまうのを防ぐ)
+ */
+export function dedupeByCompanyName(rows: SheetRowData[]): SheetRowData[] {
+  const bestByName = new Map<string, SheetRowData>();
+  for (const row of rows) {
+    const key = normalizeCompanyName(row.companyName);
+    if (!key) continue;
+    const existing = bestByName.get(key);
+    if (!existing || attemptProgress(row) > attemptProgress(existing)) {
+      bestByName.set(key, row);
+    }
+  }
+
+  const best = new Set(bestByName.values());
+  return rows.filter((row) => !normalizeCompanyName(row.companyName) || best.has(row));
+}
+
 export function selectBatch(
   rows: SheetRowData[],
   batchSize: number,

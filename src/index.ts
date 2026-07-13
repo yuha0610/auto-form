@@ -10,7 +10,7 @@ import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
-import { selectBatch } from "./lib/targetSelection.js";
+import { selectBatch, dedupeByCompanyName } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
   createSheetsClient,
@@ -62,8 +62,15 @@ program
 
     const raw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
     const rows = parseSheetRows(raw);
+    const dedupedRows = dedupeByCompanyName(rows);
+    if (dedupedRows.length < rows.length) {
+      console.log(
+        `企業名が重複する行を${rows.length - dedupedRows.length}件検出したため、` +
+          `送信が最も進んでいる行のみを対象にします(二重送信防止)。`,
+      );
+    }
 
-    const candidates = selectBatch(rows, rows.length, new Date());
+    const candidates = selectBatch(dedupedRows, dedupedRows.length, new Date());
     if (candidates.length === 0) {
       console.log("送信対象の企業がありません。");
       return;

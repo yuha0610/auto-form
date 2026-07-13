@@ -5,6 +5,7 @@ import {
   isSkipped,
   getNextAttempt,
   selectBatch,
+  dedupeByCompanyName,
 } from "../src/lib/targetSelection.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -114,4 +115,38 @@ test("selectBatch: 対象行を先頭からbatchSize件だけ返す", () => {
   const batch = selectBatch(rows, 2, today);
   expect(batch.map((t) => t.row.companyName)).toEqual(["A", "C"]);
   expect(batch.every((t) => t.attemptNumber === 1)).toBe(true);
+});
+
+test("dedupeByCompanyName: 企業名が重複していれば送信が最も進んでいる行だけを残す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社" }),
+    makeRow({ rowIndex: 3, companyName: "A社", firstSentAt: "2026/06/01" }),
+  ];
+  const deduped = dedupeByCompanyName(rows);
+  expect(deduped.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("dedupeByCompanyName: 表記ゆれ(前後の空白/大文字小文字)も同一企業として扱う", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: " Example Inc " }),
+    makeRow({ rowIndex: 3, companyName: "example inc", secondSentAt: "2026/06/01", firstSentAt: "2026/05/01" }),
+  ];
+  const deduped = dedupeByCompanyName(rows);
+  expect(deduped.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("dedupeByCompanyName: 重複がなければ元の並び順のまま返す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社" }),
+    makeRow({ rowIndex: 3, companyName: "B社" }),
+  ];
+  expect(dedupeByCompanyName(rows)).toEqual(rows);
+});
+
+test("dedupeByCompanyName: 企業名が空の行は重複判定せずそのまま残す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "" }),
+    makeRow({ rowIndex: 3, companyName: "" }),
+  ];
+  expect(dedupeByCompanyName(rows)).toEqual(rows);
 });
