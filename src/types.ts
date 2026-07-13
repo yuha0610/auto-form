@@ -4,6 +4,7 @@ export interface Template {
   senderName: string;
   senderEmail: string;
   senderPhone: string;
+  senderTitle?: string;
   subject: string;
   message: string;
 }

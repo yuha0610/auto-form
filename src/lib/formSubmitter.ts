@@ -7,12 +7,13 @@ import type { Template } from "../types.js";
  */
 const FIELD_KEYWORDS: Record<keyof Pick<
   Template,
-  "senderCompany" | "senderName" | "senderEmail" | "senderPhone" | "subject" | "message"
+  "senderCompany" | "senderName" | "senderEmail" | "senderPhone" | "senderTitle" | "subject" | "message"
 >, string[]> = {
   senderCompany: ["会社名", "貴社名", "company", "corporation"],
   senderName: ["氏名", "お名前", "担当者名", "name"],
   senderEmail: ["メール", "email", "mail"],
   senderPhone: ["電話", "tel", "phone"],
+  senderTitle: ["役職", "肩書", "job title", "position"],
   subject: ["件名", "タイトル", "subject"],
   message: ["お問い合わせ内容", "本文", "message", "inquiry", "content"],
 };
@@ -89,6 +90,9 @@ export async function fillForm(page: Page, template: Template): Promise<FillResu
     ["subject", template.subject],
     ["message", template.message],
   ];
+  if (template.senderTitle) {
+    entries.push(["senderTitle", template.senderTitle]);
+  }
 
   for (const [field, value] of entries) {
     const filled = await fillByKeyword(page, FIELD_KEYWORDS[field], value);
@@ -103,6 +107,7 @@ const FIELD_LABELS: Record<string, string> = {
   senderName: "氏名",
   senderEmail: "メール",
   senderPhone: "電話",
+  senderTitle: "役職",
   subject: "件名",
   message: "本文",
 };
