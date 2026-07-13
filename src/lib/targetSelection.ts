@@ -37,7 +37,7 @@ export function isSkipped(row: SheetRowData): boolean {
 }
 
 export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | null {
-  if (row.dealStatus === "あり") return null;
+  if (row.dealStatus.trim() !== "") return null;
   if (isSkipped(row)) return null;
 
   if (!row.firstSentAt) return 1;

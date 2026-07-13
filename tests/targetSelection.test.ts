@@ -15,7 +15,7 @@ function makeRow(overrides: Partial<SheetRowData>): SheetRowData {
     companyUrl: "https://example.com/",
     formUrl: "",
     note: "",
-    dealStatus: "無",
+    dealStatus: "",
     firstSentAt: null,
     secondSentAt: null,
     thirdSentAt: null,
@@ -56,9 +56,14 @@ test("getNextAttempt: 1回目が空欄なら1を返す", () => {
   expect(getNextAttempt(makeRow({}), today)).toBe(1);
 });
 
-test("getNextAttempt: 商談ありなら対象外", () => {
+test("getNextAttempt: 商談確定日が入っていれば対象外", () => {
   const today = new Date(2026, 6, 12);
-  expect(getNextAttempt(makeRow({ dealStatus: "あり" }), today)).toBeNull();
+  expect(getNextAttempt(makeRow({ dealStatus: "2026/07/13" }), today)).toBeNull();
+});
+
+test("getNextAttempt: 商談確定日が空欄なら対象外にならない", () => {
+  const today = new Date(2026, 6, 12);
+  expect(getNextAttempt(makeRow({ dealStatus: "" }), today)).toBe(1);
 });
 
 test("getNextAttempt: スキップキーワードがあれば対象外", () => {
