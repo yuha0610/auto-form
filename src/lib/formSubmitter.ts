@@ -18,7 +18,7 @@ const FIELD_KEYWORDS: Record<keyof Pick<
 };
 
 async function fillByKeyword(page: Page, keywords: string[], value: string): Promise<boolean> {
-  const inputs = page.locator("input, textarea");
+  const inputs = page.locator("input:not([type='hidden']), textarea");
   const count = await inputs.count();
 
   for (let i = 0; i < count; i++) {
@@ -29,10 +29,36 @@ async function fillByKeyword(page: Page, keywords: string[], value: string): Pro
       const labelFor = id
         ? document.querySelector(`label[for="${id}"]`)?.textContent ?? ""
         : "";
+
+      // label要素と紐づいていない入力欄向けに、直前の兄弟要素や親要素内の
+      // テキストを見出しテキストの代わりとして拾うフォールバック。
+      // script/style/noscriptやhidden inputは表示上のラベルになり得ないので除外する。
+      const NON_LABEL_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT", "SCRIPT", "STYLE", "NOSCRIPT"]);
+      let nearby = "";
+      if (!label && !labelFor) {
+        let node: Element = el;
+        for (let depth = 0; depth < 3; depth++) {
+          const container: Element | null = node.parentElement;
+          if (!container) break;
+
+          let text = "";
+          for (const child of Array.from(container.children)) {
+            if (child === node) break;
+            if (NON_LABEL_TAGS.has(child.tagName)) continue;
+            text += ` ${child.textContent ?? ""}`;
+          }
+          if (text.trim()) {
+            nearby = text;
+            break;
+          }
+          node = container;
+        }
+      }
+
       return {
         name: el.getAttribute("name") ?? "",
         placeholder: el.getAttribute("placeholder") ?? "",
-        label: `${label} ${labelFor}`,
+        label: `${label} ${labelFor} ${nearby}`,
       };
     });
 

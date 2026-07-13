@@ -46,6 +46,11 @@ test("isSkipped は備考にスキップキーワードが含まれていればt
   expect(isSkipped(makeRow({ note: "" }))).toBe(false);
 });
 
+test("isSkipped: 備考にCAPTCHAが含まれていればtrue", () => {
+  expect(isSkipped(makeRow({ note: "CAPTCHAあり" }))).toBe(true);
+  expect(isSkipped(makeRow({ note: "CAPTCHA" }))).toBe(true);
+});
+
 test("getNextAttempt: 1回目が空欄なら1を返す", () => {
   const today = new Date(2026, 6, 12);
   expect(getNextAttempt(makeRow({}), today)).toBe(1);

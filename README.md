@@ -26,6 +26,7 @@ npm run playwright:install
 3. サービスアカウントのJSONキーを `credentials/google-service-account.json` に置く
 4. `.env.example` を `.env` にコピーし、`GOOGLE_SERVICE_ACCOUNT_KEY_PATH` と `GOOGLE_SHEET_ID` を設定する
 5. スプレッドシートのヘッダー行に「フォームURL」列を追加する
+6. (任意)Slackで「Incoming Webhooks」を有効化し、通知先チャンネルを選んでWebhook URLを発行、`.env` の `SLACK_WEBHOOK_URL` に設定する。設定しない場合はSlack通知がスキップされる
 
 ## 使い方
 
@@ -39,6 +40,10 @@ npm run dev -- --batch-size 10
 
 タブが開いたら、各タブを順番に確認し、キャプチャ対応・送信ボタンのクリックを人手で行う。
 すべて終わったらターミナルでEnterキーを押すと、各タブの送信結果を判定してスプレッドシートに記録する。
+
+確認中にCAPTCHA(「私はロボットではありません」等)が表示された企業は、スプレッドシートの「備考」列に「CAPTCHA」という文字列を含めて記入しておくと、次回以降のバッチで自動的にスキップされる。
+
+バッチの送信結果をスプレッドシートに記録した後、その時点での「今日の累計送信件数」がSlackに通知される(`SLACK_WEBHOOK_URL` を設定している場合のみ)。
 
 ## 注意事項
 

@@ -7,6 +7,7 @@ const SKIP_MARKERS = [
   "サポートのみ",
   "リンク切れ",
   "メール",
+  "CAPTCHA",
 ];
 
 const FOLLOW_UP_INTERVAL_DAYS = 30;

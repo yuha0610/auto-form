@@ -3,9 +3,13 @@ import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import { chromium, type Page } from "playwright";
 import { loadTemplate } from "./lib/templates.js";
-import { fillForm, injectFillBanner } from "./lib/formSubmitter.js";
+import { injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl } from "./lib/formDiscovery.js";
+import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
+import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
+import { notifyBatchReady } from "./lib/notify.js";
+import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
 import { selectBatch } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
@@ -82,9 +86,9 @@ program
 
         try {
           if (formUrl) {
-            await page.goto(formUrl, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, formUrl, { waitUntil: "domcontentloaded" });
           } else {
-            await page.goto(target.row.companyUrl, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, target.row.companyUrl, { waitUntil: "domcontentloaded" });
             const discovered = await findContactFormUrl(page);
             if (!discovered) {
               console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
@@ -99,25 +103,32 @@ program
               await page.close();
               continue;
             }
-            await page.goto(discovered, { waitUntil: "domcontentloaded" });
+            await gotoWithRetry(page, discovered, { waitUntil: "domcontentloaded" });
             formUrl = discovered;
           }
 
-          const { filledFields, missingFields } = await fillForm(page, template);
+          const { filledFields, missingFields, navigatedTo } = await fillFormWithDiscovery(page, template);
           await injectFillBanner(page, filledFields, missingFields);
+          if (navigatedTo) formUrl = navigatedTo;
           opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
         } catch (error) {
+          const failureReason =
+            error instanceof NavigationError ? error.label : "読み込み失敗(要確認)";
           console.warn(`[${target.row.companyName}] 読み込みに失敗: ${String(error)}`);
           outcomeUpdates.push({
             rowIndex: target.row.rowIndex,
             attemptNumber: target.attemptNumber,
             outcome: "failed",
             existingNote: target.row.note,
-            failureReason: String(error),
+            failureReason,
           });
           expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
         }
+      }
+
+      if (opened.length > 0) {
+        await notifyBatchReady(opened.length);
       }
 
       const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -190,6 +201,14 @@ program
           `スプレッドシートへの書き込みに失敗しました: ${String(error)}\n` +
             `結果は ${path} に保存しました。次回起動時に自動で再送されます。`,
         );
+      }
+
+      try {
+        const countRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
+        const countRows = parseSheetRows(countRaw);
+        await notifySlackDailyCount(countSentToday(countRows, new Date()));
+      } catch (error) {
+        console.warn(`今日の送信件数の集計に失敗しました: ${String(error)}`);
       }
     } finally {
       await browser.close();
