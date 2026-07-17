@@ -22,7 +22,7 @@ export function buildSlackPayload(count: number): { text: string } {
   return { text: `今日の送信: ${count}件` };
 }
 
-export async function notifySlackDailyCount(count: number): Promise<void> {
+export async function notifySlackText(text: string): Promise<void> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
   if (!webhookUrl) {
     console.warn("SLACK_WEBHOOK_URL が設定されていないため、Slack通知をスキップしました");
@@ -32,7 +32,7 @@ export async function notifySlackDailyCount(count: number): Promise<void> {
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildSlackPayload(count)),
+      body: JSON.stringify({ text }),
     });
     if (!response.ok) {
       console.warn(`Slack通知に失敗しました: HTTP ${response.status}`);
@@ -40,4 +40,8 @@ export async function notifySlackDailyCount(count: number): Promise<void> {
   } catch (error) {
     console.warn(`Slack通知に失敗しました: ${String(error)}`);
   }
+}
+
+export async function notifySlackDailyCount(count: number): Promise<void> {
+  await notifySlackText(buildSlackPayload(count).text);
 }
