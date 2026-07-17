@@ -10,9 +10,11 @@
 
 ## 今週の目標件数の計算
 
-既存の`buildProgressMessage`が計算する「必要ペース」(全体の残り件数 ÷ 全体の残り営業日、切り上げ)に、「今日から今週の日曜日までの営業日数(今日を含む)」を掛けたものを「今週の残り目標」とする。
+既存の`buildProgressMessage`が計算する「必要ペース」(全体の残り件数 ÷ 全体の残り営業日、切り上げ)に、「今週の残り営業日数」を掛けたものを「今週の残り目標」とする。
 
-例: 必要ペースが85件/日で、今日が金曜日(今週の残り営業日は今日1日のみ)の場合、今週の残り目標は85件。
+「今週の残り営業日数」は、全体の残り営業日数(`countRemainingBusinessDays`)と同じ規則で**今日を除く**: 今日の翌日から今週の日曜日までの営業日数とする。今日を含めると、必要ペースの算出根拠(今日を除いた日数で割った値)と今週の残り営業日数(今日を含む日数)の基準がずれ、期限が今週中にある場合に「今週の残り目標」が「全体の残り件数」を超えてしまうことがあるため、両者は同じ「今日を除く」規則に統一する。
+
+例: 必要ペースが94件/日で、今日が火曜日(今週の残り営業日は水木金の3日、今日は含まない)の場合、今週の残り目標は282件。
 
 この値は日々変動する(前日までの遅れ/進みが必要ペースに反映され、その必要ペースに今週の残り営業日数を掛けるため)。固定の週間ノルマではなく、「あと何件当たれば全体のペースに追いつくか」の目安として使う。
 
@@ -28,7 +30,7 @@
 累計(1回目): 156件 / 目標1000件(残り844件)
 残り営業日: 9日
 必要ペース: 94件/日
-今週(07/13週): 12件 / 週残り目標85件
+今週(07/13週): 12件 / 週残り目標282件
 ```
 
 「07/13週」はその週の月曜日の日付(`MM/DD`)。
@@ -77,7 +79,9 @@ if (goal) {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
   const thisWeekSent = countSentThisWeek(countRows, weekStart, today);
-  const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(today, weekEnd);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(tomorrow, weekEnd);
 
   await notifySlackText(
     buildProgressMessage(
