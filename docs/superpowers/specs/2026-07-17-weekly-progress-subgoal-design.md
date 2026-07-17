@@ -47,7 +47,7 @@ export function countSentThisWeek(rows: SheetRowData[], weekStart: Date, today: 
 - `countBusinessDaysInclusive(from, to)`: `from`から`to`まで(両端含む)を1日ずつ数え、土日でない日をカウントする。`from`が`to`より後の場合は`0`を返す。
 - `countSentThisWeek(rows, weekStart, today)`: 各行の`firstSentAt`をパースし、`weekStart`(00:00)以上`today`(その日の00:00)以下の範囲に入っていればカウントする。
 
-既存の`buildProgressMessage`のシグネチャを変更する。「今週の残り営業日数」の計算には`today`が必要だが、`buildProgressMessage`は日付を自分で取得しない(既存の`remainingBusinessDays`も呼び出し側で計算済みの値を受け取る設計に合わせる)ため、`thisWeekRemainingBusinessDays`も呼び出し側で計算して渡す:
+既存の`buildProgressMessage`のシグネチャを変更する。「今週の残り営業日数」の計算には`today`が必要だが、`buildProgressMessage`は日付を自分で取得しない(既存の`remainingBusinessDays`も呼び出し側で計算済みの値を受け取る設計に合わせる)ため、`thisWeekRemainingBusinessDays`も呼び出し側で計算して渡す。メッセージ中の「07/13週」ラベルの元になる週の月曜日(`weekStart`)も同様に呼び出し側から渡す:
 
 ```ts
 export function buildProgressMessage(
@@ -56,6 +56,7 @@ export function buildProgressMessage(
   remainingBusinessDays: number,
   thisWeekSent: number,
   thisWeekRemainingBusinessDays: number,
+  weekStart: Date,
 ): string
 ```
 
@@ -85,6 +86,7 @@ if (goal) {
       remainingBusinessDays,
       thisWeekSent,
       thisWeekRemainingBusinessDays,
+      weekStart,
     ),
   );
 }
