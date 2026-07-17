@@ -14,6 +14,9 @@ import {
   fetchGoal,
   countFirstSent,
   countRemainingBusinessDays,
+  countSentThisWeek,
+  countBusinessDaysInclusive,
+  getWeekStart,
   buildProgressMessage,
 } from "./lib/progressGoal.js";
 import { selectBatch, dedupeByCompanyName, summarizeSkipped } from "./lib/targetSelection.js";
@@ -240,9 +243,26 @@ program
 
         const goal = await fetchGoal(sheetsClient, spreadsheetId);
         if (goal) {
+          const today = new Date();
           const totalSent = countFirstSent(countRows);
-          const remainingBusinessDays = countRemainingBusinessDays(new Date(), goal.deadline);
-          await notifySlackText(buildProgressMessage(totalSent, goal, remainingBusinessDays));
+          const remainingBusinessDays = countRemainingBusinessDays(today, goal.deadline);
+
+          const weekStart = getWeekStart(today);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 6);
+          const thisWeekSent = countSentThisWeek(countRows, weekStart, today);
+          const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(today, weekEnd);
+
+          await notifySlackText(
+            buildProgressMessage(
+              totalSent,
+              goal,
+              remainingBusinessDays,
+              thisWeekSent,
+              thisWeekRemainingBusinessDays,
+              weekStart,
+            ),
+          );
         }
       } catch (error) {
         console.warn(`今日の送信件数・進捗の集計に失敗しました: ${String(error)}`);
