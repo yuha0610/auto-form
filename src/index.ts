@@ -251,7 +251,9 @@ program
           const weekEnd = new Date(weekStart);
           weekEnd.setDate(weekEnd.getDate() + 6);
           const thisWeekSent = countSentThisWeek(countRows, weekStart, today);
-          const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(today, weekEnd);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(tomorrow, weekEnd);
 
           await notifySlackText(
             buildProgressMessage(
