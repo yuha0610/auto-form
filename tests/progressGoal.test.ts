@@ -4,6 +4,8 @@ import {
   countFirstSent,
   countRemainingBusinessDays,
   buildProgressMessage,
+  getWeekStart,
+  countBusinessDaysInclusive,
 } from "../src/lib/progressGoal.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -104,4 +106,47 @@ test("buildProgressMessage: 残り営業日0かつ未達成の場合は期限切
   expect(message).toBe(
     "累計(1回目): 800件 / 目標1000件(残り200件)\n期限(2026/07/31)を過ぎています",
   );
+});
+
+test("getWeekStart: 週の途中の平日から月曜日を返す", () => {
+  const wednesday = new Date(2026, 6, 15); // 2026/07/15 水曜
+  const start = getWeekStart(wednesday);
+  expect(start.getFullYear()).toBe(2026);
+  expect(start.getMonth()).toBe(6);
+  expect(start.getDate()).toBe(13); // 2026/07/13 月曜
+});
+
+test("getWeekStart: 日曜日からは同じ週の月曜日を返す(前週ではない)", () => {
+  const sunday = new Date(2026, 6, 19); // 2026/07/19 日曜
+  const start = getWeekStart(sunday);
+  expect(start.getDate()).toBe(13); // 同じ週の2026/07/13 月曜
+});
+
+test("getWeekStart: 月曜日自身を渡すとその日をそのまま返す", () => {
+  const monday = new Date(2026, 6, 13);
+  const start = getWeekStart(monday);
+  expect(start.getDate()).toBe(13);
+});
+
+test("countBusinessDaysInclusive: 両端が平日なら日数をそのままカウントする", () => {
+  const from = new Date(2026, 6, 13); // 月曜
+  const to = new Date(2026, 6, 17); // 金曜
+  expect(countBusinessDaysInclusive(from, to)).toBe(5);
+});
+
+test("countBusinessDaysInclusive: fromとtoが同じ平日なら1を返す", () => {
+  const day = new Date(2026, 6, 17); // 金曜
+  expect(countBusinessDaysInclusive(day, day)).toBe(1);
+});
+
+test("countBusinessDaysInclusive: 土日を挟む場合は除外する", () => {
+  const from = new Date(2026, 6, 13); // 月曜
+  const to = new Date(2026, 6, 19); // 日曜
+  expect(countBusinessDaysInclusive(from, to)).toBe(5); // 月〜金の5日
+});
+
+test("countBusinessDaysInclusive: fromがtoより後なら0を返す", () => {
+  const from = new Date(2026, 6, 17);
+  const to = new Date(2026, 6, 13);
+  expect(countBusinessDaysInclusive(from, to)).toBe(0);
 });

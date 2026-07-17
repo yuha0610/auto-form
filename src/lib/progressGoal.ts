@@ -46,6 +46,30 @@ export function countRemainingBusinessDays(today: Date, deadline: Date): number 
   return count;
 }
 
+export function getWeekStart(date: Date): Date {
+  const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = midnight.getDay();
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  midnight.setDate(midnight.getDate() - diffToMonday);
+  return midnight;
+}
+
+export function countBusinessDaysInclusive(from: Date, to: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const fromMidnight = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const toMidnight = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+
+  let count = 0;
+  for (
+    let d = new Date(fromMidnight.getTime());
+    d.getTime() <= toMidnight.getTime();
+    d = new Date(d.getTime() + msPerDay)
+  ) {
+    if (!isWeekend(d)) count++;
+  }
+  return count;
+}
+
 export function buildProgressMessage(
   totalSent: number,
   goal: Goal,
