@@ -87,23 +87,26 @@ test("countRemainingBusinessDays: 期限が今日より前の場合は0を返す
   expect(countRemainingBusinessDays(today, deadline)).toBe(0);
 });
 
-test("buildProgressMessage: 通常時は残り件数と必要ペースを含む", () => {
+test("buildProgressMessage: 通常時は残り件数・必要ペース・今週の状況を含む", () => {
   const goal = { targetCount: 1000, deadline: new Date(2026, 6, 31) };
-  const message = buildProgressMessage(156, goal, 9);
+  const weekStart = new Date(2026, 6, 13); // 07/13週
+  const message = buildProgressMessage(156, goal, 9, 12, 1, weekStart);
   expect(message).toBe(
-    "累計(1回目): 156件 / 目標1000件(残り844件)\n残り営業日: 9日\n必要ペース: 94件/日",
+    "累計(1回目): 156件 / 目標1000件(残り844件)\n残り営業日: 9日\n必要ペース: 94件/日\n今週(07/13週): 12件 / 週残り目標94件",
   );
 });
 
-test("buildProgressMessage: 目標達成済みの場合は達成メッセージを返す", () => {
+test("buildProgressMessage: 目標達成済みの場合は達成メッセージのみ返す(週次行なし)", () => {
   const goal = { targetCount: 1000, deadline: new Date(2026, 6, 31) };
-  const message = buildProgressMessage(1020, goal, 9);
+  const weekStart = new Date(2026, 6, 13);
+  const message = buildProgressMessage(1020, goal, 9, 12, 1, weekStart);
   expect(message).toBe("累計(1回目): 1020件 / 目標1000件 達成済み🎉");
 });
 
-test("buildProgressMessage: 残り営業日0かつ未達成の場合は期限切れメッセージを返す", () => {
+test("buildProgressMessage: 残り営業日0かつ未達成の場合は期限切れメッセージのみ返す(週次行なし)", () => {
   const goal = { targetCount: 1000, deadline: new Date(2026, 6, 31) };
-  const message = buildProgressMessage(800, goal, 0);
+  const weekStart = new Date(2026, 6, 13);
+  const message = buildProgressMessage(800, goal, 0, 12, 0, weekStart);
   expect(message).toBe(
     "累計(1回目): 800件 / 目標1000件(残り200件)\n期限(2026/07/31)を過ぎています",
   );

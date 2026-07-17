@@ -93,6 +93,9 @@ export function buildProgressMessage(
   totalSent: number,
   goal: Goal,
   remainingBusinessDays: number,
+  thisWeekSent: number,
+  thisWeekRemainingBusinessDays: number,
+  weekStart: Date,
 ): string {
   if (totalSent >= goal.targetCount) {
     return `累計(1回目): ${totalSent}件 / 目標${goal.targetCount}件 達成済み🎉`;
@@ -106,7 +109,12 @@ export function buildProgressMessage(
   }
 
   const requiredPace = Math.ceil(remainingCount / remainingBusinessDays);
-  return `${base}\n残り営業日: ${remainingBusinessDays}日\n必要ペース: ${requiredPace}件/日`;
+  const weekRemainingTarget = requiredPace * thisWeekRemainingBusinessDays;
+  const weekLabel = formatSheetDate(weekStart).slice(5); // "MM/DD"
+  return (
+    `${base}\n残り営業日: ${remainingBusinessDays}日\n必要ペース: ${requiredPace}件/日\n` +
+    `今週(${weekLabel}週): ${thisWeekSent}件 / 週残り目標${weekRemainingTarget}件`
+  );
 }
 
 export async function fetchGoal(
