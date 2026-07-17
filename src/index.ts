@@ -9,7 +9,13 @@ import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { notifyBatchReady } from "./lib/notify.js";
-import { countSentToday, notifySlackDailyCount } from "./lib/slackNotify.js";
+import { countSentToday, notifySlackDailyCount, notifySlackText } from "./lib/slackNotify.js";
+import {
+  fetchGoal,
+  countFirstSent,
+  countRemainingBusinessDays,
+  buildProgressMessage,
+} from "./lib/progressGoal.js";
 import { selectBatch, dedupeByCompanyName, summarizeSkipped } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
@@ -231,8 +237,15 @@ program
         const countRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
         const countRows = parseSheetRows(countRaw);
         await notifySlackDailyCount(countSentToday(countRows, new Date()));
+
+        const goal = await fetchGoal(sheetsClient, spreadsheetId);
+        if (goal) {
+          const totalSent = countFirstSent(countRows);
+          const remainingBusinessDays = countRemainingBusinessDays(new Date(), goal.deadline);
+          await notifySlackText(buildProgressMessage(totalSent, goal, remainingBusinessDays));
+        }
       } catch (error) {
-        console.warn(`今日の送信件数の集計に失敗しました: ${String(error)}`);
+        console.warn(`今日の送信件数・進捗の集計に失敗しました: ${String(error)}`);
       }
     } finally {
       await browser.close();
