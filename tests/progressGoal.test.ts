@@ -6,6 +6,7 @@ import {
   buildProgressMessage,
   getWeekStart,
   countBusinessDaysInclusive,
+  countSentThisWeek,
 } from "../src/lib/progressGoal.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -149,4 +150,23 @@ test("countBusinessDaysInclusive: fromがtoより後なら0を返す", () => {
   const from = new Date(2026, 6, 17);
   const to = new Date(2026, 6, 13);
   expect(countBusinessDaysInclusive(from, to)).toBe(0);
+});
+
+test("countSentThisWeek: 週の範囲内(月曜〜今日)の送信をカウントする", () => {
+  const weekStart = new Date(2026, 6, 13); // 月曜
+  const today = new Date(2026, 6, 16); // 木曜
+  const rows = [
+    makeRow({ rowIndex: 2, firstSentAt: "2026/07/13" }), // 月曜(範囲内)
+    makeRow({ rowIndex: 3, firstSentAt: "2026/07/16" }), // 今日(範囲内)
+    makeRow({ rowIndex: 4, firstSentAt: "2026/07/10" }), // 先週(範囲外)
+    makeRow({ rowIndex: 5, firstSentAt: null }),
+  ];
+  expect(countSentThisWeek(rows, weekStart, today)).toBe(2);
+});
+
+test("countSentThisWeek: 来週の日付は範囲外としてカウントしない", () => {
+  const weekStart = new Date(2026, 6, 13);
+  const today = new Date(2026, 6, 16);
+  const rows = [makeRow({ rowIndex: 2, firstSentAt: "2026/07/20" })];
+  expect(countSentThisWeek(rows, weekStart, today)).toBe(0);
 });

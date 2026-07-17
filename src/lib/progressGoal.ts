@@ -70,6 +70,25 @@ export function countBusinessDaysInclusive(from: Date, to: Date): number {
   return count;
 }
 
+export function countSentThisWeek(
+  rows: SheetRowData[],
+  weekStart: Date,
+  today: Date,
+): number {
+  const weekStartMidnight = new Date(
+    weekStart.getFullYear(),
+    weekStart.getMonth(),
+    weekStart.getDate(),
+  );
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return rows.filter((row) => {
+    const sentAt = parseSheetDate(row.firstSentAt);
+    if (!sentAt) return false;
+    return sentAt.getTime() >= weekStartMidnight.getTime() && sentAt.getTime() <= todayMidnight.getTime();
+  }).length;
+}
+
 export function buildProgressMessage(
   totalSent: number,
   goal: Goal,
