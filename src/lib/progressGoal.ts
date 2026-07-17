@@ -1,3 +1,4 @@
+import type { sheets_v4 } from "googleapis";
 import type { SheetRowData } from "../types.js";
 import { formatSheetDate, parseSheetDate } from "./targetSelection.js";
 
@@ -63,4 +64,24 @@ export function buildProgressMessage(
 
   const requiredPace = Math.ceil(remainingCount / remainingBusinessDays);
   return `${base}\n残り営業日: ${remainingBusinessDays}日\n必要ペース: ${requiredPace}件/日`;
+}
+
+export async function fetchGoal(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+): Promise<Goal | null> {
+  const meta = await client.spreadsheets.get({ spreadsheetId });
+  const hasProgressSheet = meta.data.sheets?.some(
+    (sheet) => sheet.properties?.title === "進捗",
+  );
+  if (!hasProgressSheet) return null;
+
+  const res = await client.spreadsheets.values.get({
+    spreadsheetId,
+    range: "進捗!B1:B2",
+  });
+  const values = res.data.values ?? [];
+  const targetCountRaw = values[0]?.[0] ?? "";
+  const deadlineRaw = values[1]?.[0] ?? "";
+  return parseGoal(targetCountRaw, deadlineRaw);
 }
