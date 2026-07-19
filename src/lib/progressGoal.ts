@@ -117,6 +117,14 @@ export function buildProgressMessage(
   );
 }
 
+export function countSentThisMonth(rows: SheetRowData[], today: Date): number {
+  return rows.filter((row) => {
+    const sentAt = parseSheetDate(row.firstSentAt);
+    if (!sentAt) return false;
+    return sentAt.getFullYear() === today.getFullYear() && sentAt.getMonth() === today.getMonth();
+  }).length;
+}
+
 export async function fetchGoal(
   client: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -135,4 +143,26 @@ export async function fetchGoal(
   const targetCountRaw = values[0]?.[0] ?? "";
   const deadlineRaw = values[1]?.[0] ?? "";
   return parseGoal(targetCountRaw, deadlineRaw);
+}
+
+export async function writeProgressCounts(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+  totalSent: number,
+  thisMonthSent: number,
+  today: Date,
+): Promise<void> {
+  const monthLabel = `今月送信数(${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")})`;
+  await client.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data: [
+        { range: "進捗!A3", values: [["累計送信数"]] },
+        { range: "進捗!B3", values: [[String(totalSent)]] },
+        { range: "進捗!A4", values: [[monthLabel]] },
+        { range: "進捗!B4", values: [[String(thisMonthSent)]] },
+      ],
+    },
+  });
 }

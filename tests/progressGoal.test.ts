@@ -7,6 +7,7 @@ import {
   getWeekStart,
   countBusinessDaysInclusive,
   countSentThisWeek,
+  countSentThisMonth,
 } from "../src/lib/progressGoal.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -172,4 +173,21 @@ test("countSentThisWeek: 来週の日付は範囲外としてカウントしな�
   const today = new Date(2026, 6, 16);
   const rows = [makeRow({ rowIndex: 2, firstSentAt: "2026/07/20" })];
   expect(countSentThisWeek(rows, weekStart, today)).toBe(0);
+});
+
+test("countSentThisMonth: 今月の送信のみカウントする", () => {
+  const today = new Date(2026, 6, 19); // 2026/07/19
+  const rows = [
+    makeRow({ rowIndex: 2, firstSentAt: "2026/07/01" }), // 今月(範囲内)
+    makeRow({ rowIndex: 3, firstSentAt: "2026/07/19" }), // 今日(範囲内)
+    makeRow({ rowIndex: 4, firstSentAt: "2026/06/30" }), // 先月(範囲外)
+    makeRow({ rowIndex: 5, firstSentAt: null }),
+  ];
+  expect(countSentThisMonth(rows, today)).toBe(2);
+});
+
+test("countSentThisMonth: 年が違う同じ月はカウントしない", () => {
+  const today = new Date(2026, 6, 19); // 2026/07/19
+  const rows = [makeRow({ rowIndex: 2, firstSentAt: "2025/07/10" })];
+  expect(countSentThisMonth(rows, today)).toBe(0);
 });
