@@ -79,7 +79,7 @@ function normalizeCompanyName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "");
 }
 
-function attemptProgress(row: SheetRowData): number {
+export function attemptProgress(row: SheetRowData): number {
   if (row.thirdSentAt) return 3;
   if (row.secondSentAt) return 2;
   if (row.firstSentAt) return 1;
