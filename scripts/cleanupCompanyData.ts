@@ -47,7 +47,13 @@ async function loadDecisions(): Promise<CleanupDecision[]> {
   try {
     const content = await readFile(DECISIONS_PATH, "utf-8");
     return JSON.parse(content) as CleanupDecision[];
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return [];
+    }
+    console.warn(
+      `\n${DECISIONS_PATH} の読み込みに失敗しました。判定内容は反映されません(全て要目視確認扱いになります): ${String(error)}`,
+    );
     return [];
   }
 }

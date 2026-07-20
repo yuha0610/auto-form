@@ -10,6 +10,7 @@
     "dev": "tsx src/index.ts",
     "test": "playwright test",
     "playwright:install": "playwright install chromium",
+    "typecheck": "tsc -p tsconfig.check.json",
     "cleanup:company-names": "tsx scripts/cleanupCompanyData.ts"
   },
   "dependencies": {
