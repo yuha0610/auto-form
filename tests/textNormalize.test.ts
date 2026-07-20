@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { normalizeCellText } from "../src/lib/textNormalize.js";
+import { normalizeCellText, extractCompanyCoreName } from "../src/lib/textNormalize.js";
 
 test("normalizeCellText: 前後の全角スペースをトリムする", () => {
   expect(normalizeCellText("　株式会社Example　")).toBe("株式会社Example");
@@ -27,4 +27,30 @@ test("normalizeCellText: 変更不要な文字列はそのまま返す", () => {
 
 test("normalizeCellText: 空文字列はそのまま返す", () => {
   expect(normalizeCellText("")).toBe("");
+});
+
+test("extractCompanyCoreName: 前方の「株式会社」を除去する", () => {
+  expect(extractCompanyCoreName("株式会社Luup")).toBe("luup");
+});
+
+test("extractCompanyCoreName: 後方の「株式会社」を除去する", () => {
+  expect(extractCompanyCoreName("BlueWX株式会社")).toBe("bluewx");
+});
+
+test("extractCompanyCoreName: 法人格が付いていない社名はそのまま(小文字化のみ)", () => {
+  expect(extractCompanyCoreName("Luup")).toBe("luup");
+});
+
+test("extractCompanyCoreName: 英語法人格(Inc./Ltd./Co., Ltd.)を除去する", () => {
+  expect(extractCompanyCoreName("Example Inc.")).toBe("example");
+  expect(extractCompanyCoreName("Example Ltd.")).toBe("example");
+  expect(extractCompanyCoreName("Example Co., Ltd.")).toBe("example");
+});
+
+test("extractCompanyCoreName: ㈱を除去する", () => {
+  expect(extractCompanyCoreName("㈱テスト")).toBe("テスト");
+});
+
+test("extractCompanyCoreName: 記号やスペースを除去する", () => {
+  expect(extractCompanyCoreName("株式会社 Do＆Do.")).toBe("do＆do");
 });
