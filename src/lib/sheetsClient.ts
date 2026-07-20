@@ -66,3 +66,44 @@ export async function writeCells(
     },
   });
 }
+
+export async function getSheetId(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetName: string,
+): Promise<number> {
+  const res = await client.spreadsheets.get({ spreadsheetId });
+  const sheet = res.data.sheets?.find((s) => s.properties?.title === sheetName);
+  const sheetId = sheet?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) {
+    throw new Error(`シートIDが取得できませんでした: ${sheetName}`);
+  }
+  return sheetId;
+}
+
+/** 指定した行番号(1始まり、ヘッダー行込み)を全て削除する。行番号が大きい順に削除し、インデックスのずれを防ぐ。 */
+export async function deleteRows(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetId: number,
+  rowIndexes: number[],
+): Promise<void> {
+  if (rowIndexes.length === 0) return;
+
+  const sortedDescending = [...rowIndexes].sort((a, b) => b - a);
+  const requests = sortedDescending.map((rowIndex) => ({
+    deleteDimension: {
+      range: {
+        sheetId,
+        dimension: "ROWS",
+        startIndex: rowIndex - 1,
+        endIndex: rowIndex,
+      },
+    },
+  }));
+
+  await client.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests },
+  });
+}
