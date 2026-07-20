@@ -1,0 +1,12 @@
+[
+  {
+    "coreName": "mov",
+    "merge": true,
+    "notes": "PR TIMESのプレスリリース発行元が「株式会社mov」で会社情報欄に自社URLとしてmov.amが明記されており、mov株式会社(https://mov.am/)と完全一致。同一企業(Opus判定, confidence: high)"
+  },
+  {
+    "coreName": "halu",
+    "merge": false,
+    "notes": "ha-lu.jpはショートドラマ制作の株式会社HA-LU、ikoudesign.comはインクルーシブデザイン製品IKOUの株式会社Haluであり、業種もドメインも異なる別会社(Opus判定, confidence: high)"
+  }
+]
