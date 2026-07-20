@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "playwright test",
-    "playwright:install": "playwright install chromium"
+    "playwright:install": "playwright install chromium",
+    "cleanup:company-names": "tsx scripts/cleanupCompanyData.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",
