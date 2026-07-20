@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { groupByCoreName, choosePrimaryRow } from "../src/lib/companyDuplicates.js";
+import {
+  groupByCoreName,
+  choosePrimaryRow,
+  pairsNeedingReview,
+  resolveDuplicateGroups,
+} from "../src/lib/companyDuplicates.js";
 import type { SheetRowData } from "../src/types.js";
 
 function makeRow(overrides: Partial<SheetRowData>): SheetRowData {
@@ -80,4 +85,93 @@ test("choosePrimaryRow: 優先度が同点なら元の行順で先頭を残す",
 
   expect(primary.rowIndex).toBe(2);
   expect(discarded.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("pairsNeedingReview: 企業名が完全一致しない組み合わせのみ返す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "Luup" }),
+    makeRow({ rowIndex: 3, companyName: "Luup" }),
+    makeRow({ rowIndex: 4, companyName: "株式会社Luup" }),
+  ];
+
+  const pairs = pairsNeedingReview(rows);
+
+  expect(pairs).toHaveLength(2);
+  expect(pairs.map(([a, b]) => [a.rowIndex, b.rowIndex])).toEqual([
+    [2, 4],
+    [3, 4],
+  ]);
+});
+
+test("pairsNeedingReview: 全行が完全一致していれば空配列", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "Luup" }),
+    makeRow({ rowIndex: 3, companyName: "luup" }),
+  ];
+
+  expect(pairsNeedingReview(rows)).toEqual([]);
+});
+
+test("resolveDuplicateGroups: 完全一致グループはFable判定なしで自動統合する", () => {
+  const groups = [
+    {
+      coreName: "luup",
+      rows: [makeRow({ rowIndex: 2, companyName: "Luup" }), makeRow({ rowIndex: 3, companyName: "Luup" })],
+    },
+  ];
+
+  const { resolved, unresolved } = resolveDuplicateGroups(groups, []);
+
+  expect(unresolved).toHaveLength(0);
+  expect(resolved).toHaveLength(1);
+  expect(resolved[0].primary.rowIndex).toBe(2);
+  expect(resolved[0].discarded.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("resolveDuplicateGroups: 表記ゆれがあり決定(merge:true)があれば統合する", () => {
+  const groups = [
+    {
+      coreName: "luup",
+      rows: [makeRow({ rowIndex: 2, companyName: "Luup" }), makeRow({ rowIndex: 3, companyName: "株式会社Luup" })],
+    },
+  ];
+
+  const { resolved, unresolved } = resolveDuplicateGroups(groups, [
+    { coreName: "luup", merge: true },
+  ]);
+
+  expect(unresolved).toHaveLength(0);
+  expect(resolved).toHaveLength(1);
+});
+
+test("resolveDuplicateGroups: 表記ゆれがあり決定がまだ無ければ要目視確認にする", () => {
+  const groups = [
+    {
+      coreName: "luup",
+      rows: [makeRow({ rowIndex: 2, companyName: "Luup" }), makeRow({ rowIndex: 3, companyName: "株式会社Luup" })],
+    },
+  ];
+
+  const { resolved, unresolved } = resolveDuplicateGroups(groups, []);
+
+  expect(resolved).toHaveLength(0);
+  expect(unresolved).toHaveLength(1);
+  expect(unresolved[0].reason).toContain("未判定");
+});
+
+test("resolveDuplicateGroups: merge:falseの決定があれば要目視確認のまま(理由付き)", () => {
+  const groups = [
+    {
+      coreName: "luup",
+      rows: [makeRow({ rowIndex: 2, companyName: "Luup" }), makeRow({ rowIndex: 3, companyName: "株式会社Luup" })],
+    },
+  ];
+
+  const { resolved, unresolved } = resolveDuplicateGroups(groups, [
+    { coreName: "luup", merge: false, notes: "別会社と判定" },
+  ]);
+
+  expect(resolved).toHaveLength(0);
+  expect(unresolved).toHaveLength(1);
+  expect(unresolved[0].reason).toContain("別会社と判定");
 });

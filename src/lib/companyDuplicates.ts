@@ -43,3 +43,75 @@ export function choosePrimaryRow(
   }
   return { primary, discarded: rows.filter((row) => row !== primary) };
 }
+
+export interface CleanupDecision {
+  coreName: string;
+  merge: boolean;
+  notes?: string;
+}
+
+export interface ResolvedGroup {
+  coreName: string;
+  primary: SheetRowData;
+  discarded: SheetRowData[];
+}
+
+export interface UnresolvedGroup {
+  coreName: string;
+  rows: SheetRowData[];
+  reason: string;
+}
+
+function namesEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** 企業名が完全一致しない(=Fableでの目視確認が必要な)組み合わせを全て返す。 */
+export function pairsNeedingReview(rows: SheetRowData[]): [SheetRowData, SheetRowData][] {
+  const pairs: [SheetRowData, SheetRowData][] = [];
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (!namesEqual(rows[i].companyName, rows[j].companyName)) {
+        pairs.push([rows[i], rows[j]]);
+      }
+    }
+  }
+  return pairs;
+}
+
+/**
+ * 重複グループを「自動統合してよいもの」と「要目視確認のもの」に分ける。
+ * - 企業名が完全一致するグループはFable判定なしで自動統合する
+ * - 完全一致しないペアが1組でもあるグループは、`decisions`に
+ *   `merge: true`の決定が無い限り統合せず要目視確認とする
+ */
+export function resolveDuplicateGroups(
+  groups: DuplicateGroup[],
+  decisions: CleanupDecision[],
+): { resolved: ResolvedGroup[]; unresolved: UnresolvedGroup[] } {
+  const decisionByCoreName = new Map(decisions.map((d) => [d.coreName, d]));
+  const resolved: ResolvedGroup[] = [];
+  const unresolved: UnresolvedGroup[] = [];
+
+  for (const group of groups) {
+    const reviewPairs = pairsNeedingReview(group.rows);
+    if (reviewPairs.length === 0) {
+      const { primary, discarded } = choosePrimaryRow(group.rows);
+      resolved.push({ coreName: group.coreName, primary, discarded });
+      continue;
+    }
+
+    const decision = decisionByCoreName.get(group.coreName);
+    if (decision?.merge) {
+      const { primary, discarded } = choosePrimaryRow(group.rows);
+      resolved.push({ coreName: group.coreName, primary, discarded });
+    } else {
+      const reason = decision
+        ? `Fableが同一企業ではないと判定しました${decision.notes ? `(${decision.notes})` : ""}`
+        : "Fable未判定です。data/cleanup-decisions.json に判定結果を追加してください";
+      unresolved.push({ coreName: group.coreName, rows: group.rows, reason });
+    }
+  }
+
+  return { resolved, unresolved };
+}
