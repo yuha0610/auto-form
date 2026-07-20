@@ -9,17 +9,20 @@ const FIELD_KEYWORDS: Record<keyof Pick<
   Template,
   "senderCompany" | "senderName" | "senderEmail" | "senderPhone" | "senderTitle" | "subject" | "message"
 >, string[]> = {
-  senderCompany: ["会社名", "貴社名", "company", "corporation"],
+  senderCompany: ["会社名", "貴社名", "企業名", "company", "corporation"],
   senderName: ["氏名", "お名前", "担当者名", "name"],
   senderEmail: ["メール", "email", "mail"],
   senderPhone: ["電話", "tel", "phone"],
   senderTitle: ["役職", "肩書", "job title", "position"],
   subject: ["件名", "タイトル", "subject"],
-  message: ["お問い合わせ内容", "本文", "message", "inquiry", "content"],
+  message: ["お問い合わせ内容", "お問い合せ内容", "本文", "message", "inquiry", "content"],
 };
 
+const NON_FILLABLE_INPUT_TYPES = ["hidden", "button", "submit", "reset", "checkbox", "radio", "image", "file"];
+
 async function fillByKeyword(page: Page, keywords: string[], value: string): Promise<boolean> {
-  const inputs = page.locator("input:not([type='hidden']), textarea");
+  const excluded = NON_FILLABLE_INPUT_TYPES.map((t) => `:not([type='${t}'])`).join("");
+  const inputs = page.locator(`input${excluded}, textarea`);
   const count = await inputs.count();
 
   for (let i = 0; i < count; i++) {
@@ -65,8 +68,17 @@ async function fillByKeyword(page: Page, keywords: string[], value: string): Pro
 
     const haystack = `${attrs.name} ${attrs.placeholder} ${attrs.label}`.toLowerCase();
     if (keywords.some((k) => haystack.includes(k.toLowerCase()))) {
-      await input.fill(value);
-      return true;
+      // 非表示要素は表示されるまで最大30秒待ってしまうため、
+      // 事前にisVisible()で即判定して無駄な待機を避ける。
+      if (!(await input.isVisible())) {
+        continue;
+      }
+      try {
+        await input.fill(value, { timeout: 5000 });
+        return true;
+      } catch (error) {
+        console.warn(`入力欄への入力に失敗したためスキップします: ${String(error)}`);
+      }
     }
   }
   return false;
