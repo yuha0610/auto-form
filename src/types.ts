@@ -18,6 +18,7 @@ export const COLUMNS = {
   firstSent: "フォーム営業 1回目",
   secondSent: "フォーム営業 2回目",
   thirdSent: "フォーム営業 3回目",
+  email: "メールアドレス",
 } as const;
 
 export interface SheetRowData {
@@ -30,6 +31,7 @@ export interface SheetRowData {
   firstSentAt: string | null;
   secondSentAt: string | null;
   thirdSentAt: string | null;
+  email: string;
 }
 
 export type AttemptNumber = 1 | 2 | 3;

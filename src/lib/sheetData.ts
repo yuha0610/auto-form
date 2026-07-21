@@ -43,6 +43,7 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     firstSent: findColumnIndex(raw.headerRow, COLUMNS.firstSent),
     secondSent: findColumnIndex(raw.headerRow, COLUMNS.secondSent),
     thirdSent: findColumnIndex(raw.headerRow, COLUMNS.thirdSent),
+    email: findColumnIndex(raw.headerRow, COLUMNS.email),
   };
 
   return raw.dataRows.map((cells, i) => ({
@@ -55,5 +56,6 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     firstSentAt: cells[col.firstSent] || null,
     secondSentAt: cells[col.secondSent] || null,
     thirdSentAt: cells[col.thirdSent] || null,
+    email: cells[col.email] ?? "",
   }));
 }

@@ -26,7 +26,8 @@ npm run playwright:install
 3. サービスアカウントのJSONキーを `credentials/google-service-account.json` に置く
 4. `.env.example` を `.env` にコピーし、`GOOGLE_SERVICE_ACCOUNT_KEY_PATH` と `GOOGLE_SHEET_ID` を設定する
 5. スプレッドシートのヘッダー行に「フォームURL」列を追加する
-6. (任意)Slackで「Incoming Webhooks」を有効化し、通知先チャンネルを選んでWebhook URLを発行、`.env` の `SLACK_WEBHOOK_URL` に設定する。設定しない場合はSlack通知がスキップされる
+6. スプレッドシートのヘッダー行に「メールアドレス」列を追加する(お問い合わせ先がメールアドレスのみの企業を記録する列。この列がないとツールが起動しない)
+7. (任意)Slackで「Incoming Webhooks」を有効化し、通知先チャンネルを選んでWebhook URLを発行、`.env` の `SLACK_WEBHOOK_URL` に設定する。設定しない場合はSlack通知がスキップされる
 
 ## 目標件数の管理(任意)
 
