@@ -23,3 +23,9 @@ export async function findContactFormUrl(page: Page): Promise<string | null> {
 
   return null;
 }
+
+export function extractMailto(href: string): string | null {
+  if (!href.toLowerCase().startsWith("mailto:")) return null;
+  const address = href.slice("mailto:".length).split("?")[0];
+  return address || null;
+}

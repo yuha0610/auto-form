@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { findContactFormUrl } from "../src/lib/formDiscovery.js";
+import { findContactFormUrl, extractMailto } from "../src/lib/formDiscovery.js";
 
 test("お問い合わせリンクが見つかればフルURLを返す", async ({ page }) => {
   await page.route("https://example.test/", (route) =>
@@ -41,4 +41,20 @@ test("該当リンクがなければnullを返す", async ({ page }) => {
 
   const result = await findContactFormUrl(page);
   expect(result).toBeNull();
+});
+
+test("extractMailto: mailto:リンクからメールアドレスを抽出する", () => {
+  expect(extractMailto("mailto:info@example.com")).toBe("info@example.com");
+});
+
+test("extractMailto: クエリパラメータ付きのmailto:リンクからもメールアドレスのみ抽出する", () => {
+  expect(extractMailto("mailto:info@example.com?subject=お問い合わせ")).toBe("info@example.com");
+});
+
+test("extractMailto: mailto:でないリンクはnullを返す", () => {
+  expect(extractMailto("https://example.com/contact")).toBeNull();
+});
+
+test("extractMailto: スキームが大文字でも判定する", () => {
+  expect(extractMailto("MAILTO:info@example.com")).toBe("info@example.com");
 });
