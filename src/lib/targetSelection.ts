@@ -32,8 +32,10 @@ function daysBetween(from: Date, to: Date): number {
   return Math.floor((to.getTime() - from.getTime()) / msPerDay);
 }
 
+const EMAIL_ON_FILE_REASON = "メールアドレス登録済み";
+
 export function isSkipped(row: SheetRowData): boolean {
-  return SKIP_MARKERS.some((marker) => row.note.includes(marker));
+  return SKIP_MARKERS.some((marker) => row.note.includes(marker)) || row.email.trim() !== "";
 }
 
 export interface SkipSummary {
@@ -41,17 +43,24 @@ export interface SkipSummary {
   companies: string[];
 }
 
-/** スキップされた行を、備考に含まれるスキップ理由ごとに集計する。 */
+/** スキップされた行を、備考に含まれるスキップ理由・メールアドレス登録済みかどうかごとに集計する。 */
 export function summarizeSkipped(rows: SheetRowData[]): SkipSummary[] {
   const companiesByReason = new Map<string, string[]>();
   for (const row of rows) {
     const reason = SKIP_MARKERS.find((marker) => row.note.includes(marker));
-    if (!reason) continue;
-    if (!companiesByReason.has(reason)) companiesByReason.set(reason, []);
-    companiesByReason.get(reason)!.push(row.companyName);
+    if (reason) {
+      if (!companiesByReason.has(reason)) companiesByReason.set(reason, []);
+      companiesByReason.get(reason)!.push(row.companyName);
+      continue;
+    }
+    if (row.email.trim() !== "") {
+      if (!companiesByReason.has(EMAIL_ON_FILE_REASON)) companiesByReason.set(EMAIL_ON_FILE_REASON, []);
+      companiesByReason.get(EMAIL_ON_FILE_REASON)!.push(row.companyName);
+    }
   }
 
-  return SKIP_MARKERS.filter((reason) => companiesByReason.has(reason)).map((reason) => ({
+  const reasons = [...SKIP_MARKERS, EMAIL_ON_FILE_REASON];
+  return reasons.filter((reason) => companiesByReason.has(reason)).map((reason) => ({
     reason,
     companies: companiesByReason.get(reason)!,
   }));
