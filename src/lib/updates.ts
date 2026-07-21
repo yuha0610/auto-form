@@ -5,10 +5,11 @@ import { formatSheetDate } from "./targetSelection.js";
 export interface OutcomeUpdate {
   rowIndex: number;
   attemptNumber: AttemptNumber;
-  outcome: "success" | "uncertain" | "failed";
+  outcome: "success" | "uncertain" | "failed" | "email";
   existingNote: string;
   formUrl?: string;
   failureReason?: string;
+  email?: string;
 }
 
 export interface CellWrite {
@@ -53,6 +54,12 @@ export function buildUpdates(update: OutcomeUpdate, today: Date): CellWrite[] {
       rowIndex: update.rowIndex,
       columnName: COLUMNS.note,
       value: appendNote(update.existingNote, update.failureReason),
+    });
+  } else if (update.outcome === "email" && update.email) {
+    writes.push({
+      rowIndex: update.rowIndex,
+      columnName: COLUMNS.email,
+      value: update.email,
     });
   }
 
