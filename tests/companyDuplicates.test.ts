@@ -18,6 +18,7 @@ function makeRow(overrides: Partial<SheetRowData>): SheetRowData {
     firstSentAt: null,
     secondSentAt: null,
     thirdSentAt: null,
+    email: "",
     ...overrides,
   };
 }
