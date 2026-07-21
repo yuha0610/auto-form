@@ -4,7 +4,7 @@ import { Command } from "commander";
 import { chromium, type Page } from "playwright";
 import { loadTemplate } from "./lib/templates.js";
 import { injectFillBanner } from "./lib/formSubmitter.js";
-import { findContactFormUrl } from "./lib/formDiscovery.js";
+import { findContactFormUrl, extractMailto } from "./lib/formDiscovery.js";
 import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
@@ -138,6 +138,22 @@ program
               await page.close();
               continue;
             }
+
+            const email = extractMailto(discovered);
+            if (email) {
+              console.warn(`[${target.row.companyName}] お問い合わせ先がメールアドレスでした: ${email}`);
+              outcomeUpdates.push({
+                rowIndex: target.row.rowIndex,
+                attemptNumber: target.attemptNumber,
+                outcome: "email",
+                existingNote: target.row.note,
+                email,
+              });
+              expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
+              await page.close();
+              continue;
+            }
+
             await gotoWithRetry(page, discovered, { waitUntil: "domcontentloaded" });
             formUrl = discovered;
           }
