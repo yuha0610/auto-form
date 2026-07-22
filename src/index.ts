@@ -190,13 +190,14 @@ program
 
       for (const entry of opened) {
         try {
-          const outcome = await checkSubmissionOutcome(entry.page, entry.formUrl);
+          const { outcome, failureReason } = await checkSubmissionOutcome(entry.page, entry.formUrl);
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome,
             existingNote: entry.target.row.note,
             formUrl: entry.discoveredUrl,
+            failureReason,
           });
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
         } catch (error) {
