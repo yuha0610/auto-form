@@ -28,10 +28,14 @@ export async function checkSubmissionOutcome(
 
   const bodyText = (await page.locator("body").innerText().catch(() => "")).toLowerCase();
 
+  const matched = SUCCESS_KEYWORDS.some((keyword) => bodyText.includes(keyword.toLowerCase()));
+  if (matched) {
+    return { outcome: "success" };
+  }
+
   if (isCaptchaFailure(bodyText)) {
     return { outcome: "failed", failureReason: "CAPTCHA" };
   }
 
-  const matched = SUCCESS_KEYWORDS.some((keyword) => bodyText.includes(keyword.toLowerCase()));
-  return matched ? { outcome: "success" } : { outcome: "uncertain" };
+  return { outcome: "uncertain" };
 }
