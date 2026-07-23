@@ -20,51 +20,76 @@ const FIELD_KEYWORDS: Record<keyof Pick<
 
 const NON_FILLABLE_INPUT_TYPES = ["hidden", "button", "submit", "reset", "checkbox", "radio", "image", "file"];
 
-async function fillByKeyword(page: Page, keywords: string[], value: string): Promise<boolean> {
+export interface FieldCandidateInfo {
+  name: string;
+  placeholder: string;
+  label: string;
+}
+
+async function getInputAttrs(input: ReturnType<Page["locator"]>): Promise<FieldCandidateInfo> {
+  return input.evaluate((el) => {
+    const label = el.closest("label")?.textContent ?? "";
+    const id = el.getAttribute("id") ?? "";
+    const labelFor = id
+      ? document.querySelector(`label[for="${id}"]`)?.textContent ?? ""
+      : "";
+
+    // label要素と紐づいていない入力欄向けに、直前の兄弟要素や親要素内の
+    // テキストを見出しテキストの代わりとして拾うフォールバック。
+    // script/style/noscriptやhidden inputは表示上のラベルになり得ないので除外する。
+    const NON_LABEL_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT", "SCRIPT", "STYLE", "NOSCRIPT"]);
+    let nearby = "";
+    if (!label && !labelFor) {
+      let node: Element = el;
+      for (let depth = 0; depth < 3; depth++) {
+        const container: Element | null = node.parentElement;
+        if (!container) break;
+
+        let text = "";
+        for (const child of Array.from(container.children)) {
+          if (child === node) break;
+          if (NON_LABEL_TAGS.has(child.tagName)) continue;
+          text += ` ${child.textContent ?? ""}`;
+        }
+        if (text.trim()) {
+          nearby = text;
+          break;
+        }
+        node = container;
+      }
+    }
+
+    return {
+      name: el.getAttribute("name") ?? "",
+      placeholder: el.getAttribute("placeholder") ?? "",
+      label: `${label} ${labelFor} ${nearby}`,
+    };
+  });
+}
+
+function fillableInputsLocator(page: Page) {
   const excluded = NON_FILLABLE_INPUT_TYPES.map((t) => `:not([type='${t}'])`).join("");
-  const inputs = page.locator(`input${excluded}, textarea`);
+  return page.locator(`input${excluded}, textarea`);
+}
+
+/** ページ上の全入力欄のname/placeholder/ラベル候補を集める(診断用)。 */
+export async function collectFieldCandidates(page: Page): Promise<FieldCandidateInfo[]> {
+  const inputs = fillableInputsLocator(page);
+  const count = await inputs.count();
+  const candidates: FieldCandidateInfo[] = [];
+  for (let i = 0; i < count; i++) {
+    candidates.push(await getInputAttrs(inputs.nth(i)));
+  }
+  return candidates;
+}
+
+async function fillByKeyword(page: Page, keywords: string[], value: string): Promise<boolean> {
+  const inputs = fillableInputsLocator(page);
   const count = await inputs.count();
 
   for (let i = 0; i < count; i++) {
     const input = inputs.nth(i);
-    const attrs = await input.evaluate((el) => {
-      const label = el.closest("label")?.textContent ?? "";
-      const id = el.getAttribute("id") ?? "";
-      const labelFor = id
-        ? document.querySelector(`label[for="${id}"]`)?.textContent ?? ""
-        : "";
-
-      // label要素と紐づいていない入力欄向けに、直前の兄弟要素や親要素内の
-      // テキストを見出しテキストの代わりとして拾うフォールバック。
-      // script/style/noscriptやhidden inputは表示上のラベルになり得ないので除外する。
-      const NON_LABEL_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT", "SCRIPT", "STYLE", "NOSCRIPT"]);
-      let nearby = "";
-      if (!label && !labelFor) {
-        let node: Element = el;
-        for (let depth = 0; depth < 3; depth++) {
-          const container: Element | null = node.parentElement;
-          if (!container) break;
-
-          let text = "";
-          for (const child of Array.from(container.children)) {
-            if (child === node) break;
-            if (NON_LABEL_TAGS.has(child.tagName)) continue;
-            text += ` ${child.textContent ?? ""}`;
-          }
-          if (text.trim()) {
-            nearby = text;
-            break;
-          }
-          node = container;
-        }
-      }
-
-      return {
-        name: el.getAttribute("name") ?? "",
-        placeholder: el.getAttribute("placeholder") ?? "",
-        label: `${label} ${labelFor} ${nearby}`,
-      };
-    });
+    const attrs = await getInputAttrs(input);
 
     const haystack = `${attrs.name} ${attrs.placeholder} ${attrs.label}`.toLowerCase();
     if (keywords.some((k) => haystack.includes(k.toLowerCase()))) {
@@ -87,6 +112,8 @@ async function fillByKeyword(page: Page, keywords: string[], value: string): Pro
 export interface FillResult {
   filledFields: string[];
   missingFields: string[];
+  /** missingFieldsが1件以上ある場合のみ、原因調査用にページ上の全入力欄の手がかりを含める。 */
+  fieldCandidates: FieldCandidateInfo[];
 }
 
 /** フォームへテンプレートの内容を推測入力する。送信ボタンのクリックは行わない。 */
@@ -111,7 +138,9 @@ export async function fillForm(page: Page, template: Template): Promise<FillResu
     (filled ? filledFields : missingFields).push(field);
   }
 
-  return { filledFields, missingFields };
+  const fieldCandidates = missingFields.length > 0 ? await collectFieldCandidates(page) : [];
+
+  return { filledFields, missingFields, fieldCandidates };
 }
 
 const FIELD_LABELS: Record<string, string> = {

@@ -8,6 +8,7 @@ import { findContactFormUrl, extractMailto } from "./lib/formDiscovery.js";
 import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
+import { appendMissedFieldsLog } from "./lib/missedFieldsLog.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount, notifySlackText } from "./lib/slackNotify.js";
 import {
@@ -39,6 +40,7 @@ import {
 import type { EligibleTarget } from "./types.js";
 
 const PENDING_WRITES_DIR = "data/pending-writes";
+const MISSED_FIELDS_LOG_PATH = "data/missed-fields-log.jsonl";
 
 const program = new Command();
 
@@ -158,9 +160,23 @@ program
             formUrl = discovered;
           }
 
-          const { filledFields, missingFields, navigatedTo } = await fillFormWithDiscovery(page, template);
+          const { filledFields, missingFields, fieldCandidates, navigatedTo } =
+            await fillFormWithDiscovery(page, template);
           await injectFillBanner(page, filledFields, missingFields);
           if (navigatedTo) formUrl = navigatedTo;
+          if (missingFields.length > 0) {
+            try {
+              await appendMissedFieldsLog(MISSED_FIELDS_LOG_PATH, {
+                timestamp: new Date().toISOString(),
+                companyName: target.row.companyName,
+                url: navigatedTo ?? formUrl,
+                missingFields,
+                fieldCandidates,
+              });
+            } catch (error) {
+              console.warn(`missed-fields-logの書き込みに失敗しました: ${String(error)}`);
+            }
+          }
           opened.push({ target, page, formUrl, discoveredUrl: target.row.formUrl ? undefined : formUrl });
         } catch (error) {
           const failureReason =

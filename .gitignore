@@ -8,3 +8,4 @@ dist/
 credentials/
 test-results/
 playwright-report/
+data/missed-fields-log.jsonl

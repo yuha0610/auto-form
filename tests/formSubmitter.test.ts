@@ -106,3 +106,35 @@ test("非表示(display:none)の入力欄は待たずにスキップし、他の
   expect(filledFields).toContain("senderEmail");
   await expect(page.locator("div input")).toHaveValue(template.senderEmail);
 });
+
+test("missingFieldsがある場合、fieldCandidatesにページ上の全input/textareaの手がかり情報を含める", async ({ page }) => {
+  await page.setContent(`<html><body><form>
+    <div><div>会社名<span>必須</span></div><input /></div>
+    <input name="mysteryField" placeholder="謎の項目" />
+  </form></body></html>`);
+
+  const { missingFields, fieldCandidates } = await fillForm(page, template);
+
+  expect(missingFields.length).toBeGreaterThan(0);
+  expect(fieldCandidates).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: "mysteryField", placeholder: "謎の項目" }),
+    ]),
+  );
+});
+
+test("missingFieldsがない場合、fieldCandidatesは空配列になる", async ({ page }) => {
+  await page.setContent(`<html><body><form>
+    <div><div>会社名<span>必須</span></div><input /></div>
+    <div><div>お名前<span>必須</span></div><input /></div>
+    <div><div>メールアドレス<span>必須</span></div><input /></div>
+    <div><div>電話番号<span>必須</span></div><input /></div>
+    <div><div>件名<span>必須</span></div><input /></div>
+    <div><div>お問い合わせ内容<span>必須</span></div><textarea></textarea></div>
+  </form></body></html>`);
+
+  const { missingFields, fieldCandidates } = await fillForm(page, template);
+
+  expect(missingFields).toEqual([]);
+  expect(fieldCandidates).toEqual([]);
+});
