@@ -12,7 +12,8 @@
     "playwright:install": "playwright install chromium",
     "typecheck": "tsc -p tsconfig.check.json",
     "cleanup:company-names": "tsx scripts/cleanupCompanyData.ts",
-    "screen:competitors": "tsx scripts/screenCompetitors.ts"
+    "screen:competitors": "tsx scripts/screenCompetitors.ts",
+    "screen:non-startup": "tsx scripts/screenNonStartup.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",
