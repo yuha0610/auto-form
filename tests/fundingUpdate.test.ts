@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { classifyFundingResults, type FundingResearchResult } from "../src/lib/fundingUpdate.js";
+import { classifyFundingResults, buildFundingWrites, type FundingResearchResult } from "../src/lib/fundingUpdate.js";
+import { COLUMNS } from "../src/types.js";
 import type { SheetRowData } from "../src/types.js";
 
 function makeRow(overrides: Partial<SheetRowData> = {}): SheetRowData {
@@ -113,4 +114,50 @@ test("classifyFundingResults: シート上に該当行が無い結果は要目�
   expect(needsReview).toEqual([
     { rowIndex: 999, companyName: "消えた株式会社", reason: "シート上に該当行が見つかりません" },
   ]);
+});
+
+const FUNDING_COLUMN_NAMES = {
+  fundingAmount: COLUMNS.fundingAmount,
+  fundingRound: COLUMNS.fundingRound,
+  fundingMonth: COLUMNS.fundingMonth,
+  prTimesUrl: COLUMNS.prTimesUrl,
+};
+
+test("buildFundingWrites: 現在値がbeforeと一致すれば4列分の書き込みを生成する", () => {
+  const candidates = [
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      before: { fundingAmount: "1億円", fundingRound: "シードラウンド", fundingMonth: "2025-01", prTimesUrl: "https://prtimes.jp/old" },
+      after: { fundingAmount: "5億円", fundingRound: "シリーズB", fundingMonth: "2026-06", prTimesUrl: "https://prtimes.jp/new" },
+    },
+  ];
+  const currentRows = [makeRow({ rowIndex: 2 })];
+
+  const { writes, staleSkips } = buildFundingWrites(candidates, currentRows, FUNDING_COLUMN_NAMES);
+
+  expect(staleSkips).toEqual([]);
+  expect(writes).toEqual([
+    { rowIndex: 2, columnName: COLUMNS.fundingAmount, value: "5億円" },
+    { rowIndex: 2, columnName: COLUMNS.fundingRound, value: "シリーズB" },
+    { rowIndex: 2, columnName: COLUMNS.fundingMonth, value: "2026-06" },
+    { rowIndex: 2, columnName: COLUMNS.prTimesUrl, value: "https://prtimes.jp/new" },
+  ]);
+});
+
+test("buildFundingWrites: 現在値がbeforeと異なる(手動編集済み)行はスキップされる", () => {
+  const candidates = [
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      before: { fundingAmount: "1億円", fundingRound: "シードラウンド", fundingMonth: "2025-01", prTimesUrl: "https://prtimes.jp/old" },
+      after: { fundingAmount: "5億円", fundingRound: "シリーズB", fundingMonth: "2026-06", prTimesUrl: "https://prtimes.jp/new" },
+    },
+  ];
+  const currentRows = [makeRow({ rowIndex: 2, fundingAmount: "2億円" })];
+
+  const { writes, staleSkips } = buildFundingWrites(candidates, currentRows, FUNDING_COLUMN_NAMES);
+
+  expect(writes).toEqual([]);
+  expect(staleSkips).toEqual([{ rowIndex: 2, companyName: "サンプル株式会社" }]);
 });
