@@ -44,6 +44,10 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     secondSent: findColumnIndex(raw.headerRow, COLUMNS.secondSent),
     thirdSent: findColumnIndex(raw.headerRow, COLUMNS.thirdSent),
     email: findColumnIndex(raw.headerRow, COLUMNS.email),
+    fundingAmount: findColumnIndex(raw.headerRow, COLUMNS.fundingAmount),
+    fundingRound: findColumnIndex(raw.headerRow, COLUMNS.fundingRound),
+    fundingMonth: findColumnIndex(raw.headerRow, COLUMNS.fundingMonth),
+    prTimesUrl: findColumnIndex(raw.headerRow, COLUMNS.prTimesUrl),
   };
 
   return raw.dataRows.map((cells, i) => ({
@@ -57,5 +61,9 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     secondSentAt: cells[col.secondSent] || null,
     thirdSentAt: cells[col.thirdSent] || null,
     email: cells[col.email] ?? "",
+    fundingAmount: cells[col.fundingAmount] ?? "",
+    fundingRound: cells[col.fundingRound] ?? "",
+    fundingMonth: cells[col.fundingMonth] ?? "",
+    prTimesUrl: cells[col.prTimesUrl] ?? "",
   }));
 }

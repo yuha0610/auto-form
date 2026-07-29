@@ -32,9 +32,13 @@ test("parseSheetRows: ヘッダー名から列を引いてSheetRowDataに変換�
     COLUMNS.secondSent,
     COLUMNS.thirdSent,
     COLUMNS.email,
+    COLUMNS.fundingAmount,
+    COLUMNS.fundingRound,
+    COLUMNS.fundingMonth,
+    COLUMNS.prTimesUrl,
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "", "", "", ""],
+    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "", "", "", "", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows).toEqual([
@@ -49,6 +53,10 @@ test("parseSheetRows: ヘッダー名から列を引いてSheetRowDataに変換�
       secondSentAt: null,
       thirdSentAt: null,
       email: "",
+      fundingAmount: "",
+      fundingRound: "",
+      fundingMonth: "",
+      prTimesUrl: "",
     },
   ]);
 });
@@ -94,9 +102,13 @@ test("parseSheetRows: 実シートのように改行入りヘッダーでも正�
     COLUMNS.secondSent,
     COLUMNS.thirdSent,
     COLUMNS.email,
+    COLUMNS.fundingAmount,
+    COLUMNS.fundingRound,
+    COLUMNS.fundingMonth,
+    COLUMNS.prTimesUrl,
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "2026-07-01", "", "", ""],
+    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "2026-07-01", "", "", "", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows).toEqual([
@@ -111,6 +123,10 @@ test("parseSheetRows: 実シートのように改行入りヘッダーでも正�
       secondSentAt: null,
       thirdSentAt: null,
       email: "",
+      fundingAmount: "",
+      fundingRound: "",
+      fundingMonth: "",
+      prTimesUrl: "",
     },
   ]);
 });
@@ -126,10 +142,54 @@ test("parseSheetRows: メールアドレス列の値を読み込む", () => {
     COLUMNS.secondSent,
     COLUMNS.thirdSent,
     COLUMNS.email,
+    COLUMNS.fundingAmount,
+    COLUMNS.fundingRound,
+    COLUMNS.fundingMonth,
+    COLUMNS.prTimesUrl,
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "", "", "", "", "", "info@example.com"],
+    ["サンプル株式会社", "https://example.com/", "", "", "", "", "", "", "info@example.com", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows[0].email).toBe("info@example.com");
+});
+
+test("parseSheetRows: 資金調達関連4列の値を読み込む", () => {
+  const headerRow = [
+    COLUMNS.companyName,
+    COLUMNS.companyUrl,
+    COLUMNS.formUrl,
+    COLUMNS.note,
+    COLUMNS.dealStatus,
+    COLUMNS.firstSent,
+    COLUMNS.secondSent,
+    COLUMNS.thirdSent,
+    COLUMNS.email,
+    COLUMNS.fundingAmount,
+    COLUMNS.fundingRound,
+    COLUMNS.fundingMonth,
+    COLUMNS.prTimesUrl,
+  ];
+  const dataRows = [
+    [
+      "サンプル株式会社",
+      "https://example.com/",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "3億円",
+      "シリーズB",
+      "2026-05",
+      "https://prtimes.jp/example",
+    ],
+  ];
+  const rows = parseSheetRows({ headerRow, dataRows });
+  expect(rows[0].fundingAmount).toBe("3億円");
+  expect(rows[0].fundingRound).toBe("シリーズB");
+  expect(rows[0].fundingMonth).toBe("2026-05");
+  expect(rows[0].prTimesUrl).toBe("https://prtimes.jp/example");
 });
