@@ -2,17 +2,14 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { createSheetsClient, fetchSheetData, getFirstSheetName, writeCells } from "../src/lib/sheetsClient.js";
 import { parseSheetRows } from "../src/lib/sheetData.js";
-import { classifyFundingResults, buildFundingWrites, type FundingResearchResult } from "../src/lib/fundingUpdate.js";
-import { COLUMNS } from "../src/types.js";
+import {
+  classifyFundingResults,
+  buildFundingWrites,
+  FUNDING_COLUMN_NAMES,
+  type FundingResearchResult,
+} from "../src/lib/fundingUpdate.js";
 
 const RESULTS_PATH = "data/funding-research-results.json";
-
-const FUNDING_COLUMN_NAMES = {
-  fundingAmount: COLUMNS.fundingAmount,
-  fundingRound: COLUMNS.fundingRound,
-  fundingMonth: COLUMNS.fundingMonth,
-  prTimesUrl: COLUMNS.prTimesUrl,
-};
 
 async function loadResults(): Promise<FundingResearchResult[]> {
   try {
@@ -71,9 +68,13 @@ async function main(): Promise<void> {
   const { writes, staleSkips } = buildFundingWrites(updateCandidates, latestRows, FUNDING_COLUMN_NAMES);
 
   if (staleSkips.length > 0) {
-    console.log(`\n=== 書き込みスキップ(シート上の値が調査時点と変わっています): ${staleSkips.length}件 ===`);
+    console.log(`\n=== 書き込みスキップ: ${staleSkips.length}件 ===`);
     for (const skip of staleSkips) {
-      console.log(`  [行${skip.rowIndex}] ${skip.companyName}`);
+      const reasonLabel =
+        skip.reason === "companyMismatch"
+          ? "企業名が一致しません(行がズレている可能性があります)"
+          : "シート上の値が調査時点と変わっています";
+      console.log(`  [行${skip.rowIndex}] ${skip.companyName}: ${reasonLabel}`);
     }
   }
 

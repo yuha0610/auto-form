@@ -1,23 +1,34 @@
-import type { SheetRowData } from "../types.js";
-
-export interface FundingResearchResult {
-  rowIndex: number;
-  companyName: string;
-  found: boolean;
-  updateCandidate: boolean;
-  fundingAmount?: string;
-  fundingRound?: string;
-  fundingMonth?: string;
-  sourceUrl?: string;
-  confidence: "high" | "low";
-  reason: string;
-}
+import { COLUMNS, type SheetRowData } from "../types.js";
+import { normalizeCellText } from "./textNormalize.js";
 
 export interface FundingFields {
   fundingAmount: string;
   fundingRound: string;
   fundingMonth: string;
   prTimesUrl: string;
+}
+
+/** 資金調達関連4列のヘッダー名。スクリプト/テスト双方から共通で参照する。 */
+export const FUNDING_COLUMN_NAMES: FundingFields = {
+  fundingAmount: COLUMNS.fundingAmount,
+  fundingRound: COLUMNS.fundingRound,
+  fundingMonth: COLUMNS.fundingMonth,
+  prTimesUrl: COLUMNS.prTimesUrl,
+};
+
+export interface FundingResearchResult {
+  rowIndex: number;
+  companyName: string;
+  found: boolean;
+  updateCandidate: boolean;
+  /** 調査時点でシート上にあった資金調達関連4列の値。beforeスナップショットの正式なソース。 */
+  existing: FundingFields;
+  fundingAmount?: string;
+  fundingRound?: string;
+  fundingMonth?: string;
+  sourceUrl?: string;
+  confidence: "high" | "low";
+  reason: string;
 }
 
 export interface FundingUpdateCandidate {
@@ -42,11 +53,17 @@ export interface FundingClassification {
 export interface StaleSkip {
   rowIndex: number;
   companyName: string;
+  reason: "companyMismatch" | "valueChanged";
 }
 
 export interface FundingWritePlan {
   writes: { rowIndex: number; columnName: string; value: string }[];
   staleSkips: StaleSkip[];
+}
+
+/** 値が空白のみでなければそのまま採用し、空白のみ/未指定ならfallbackを使う。 */
+function pick(candidate: string | undefined, fallback: string): string {
+  return candidate && candidate.trim() ? candidate : fallback;
 }
 
 /** JSON調査結果と現在のシート行を突き合わせ、更新候補/要目視確認/変更なしに分類する。 */
@@ -84,16 +101,16 @@ export function classifyFundingResults(
       rowIndex: result.rowIndex,
       companyName: result.companyName,
       before: {
-        fundingAmount: row.fundingAmount,
-        fundingRound: row.fundingRound,
-        fundingMonth: row.fundingMonth,
-        prTimesUrl: row.prTimesUrl,
+        fundingAmount: result.existing.fundingAmount,
+        fundingRound: result.existing.fundingRound,
+        fundingMonth: result.existing.fundingMonth,
+        prTimesUrl: result.existing.prTimesUrl,
       },
       after: {
-        fundingAmount: result.fundingAmount ?? row.fundingAmount,
-        fundingRound: result.fundingRound ?? row.fundingRound,
-        fundingMonth: result.fundingMonth ?? row.fundingMonth,
-        prTimesUrl: result.sourceUrl ?? row.prTimesUrl,
+        fundingAmount: pick(result.fundingAmount, result.existing.fundingAmount),
+        fundingRound: pick(result.fundingRound, result.existing.fundingRound),
+        fundingMonth: pick(result.fundingMonth, result.existing.fundingMonth),
+        prTimesUrl: pick(result.sourceUrl, result.existing.prTimesUrl),
       },
     });
   }
@@ -102,8 +119,10 @@ export function classifyFundingResults(
 }
 
 /**
- * 書き込み直前の現在シート値と、調査結果生成時点の`before`を比較し、
- * 一致するものだけ書き込み対象にする(手動編集済みの行は誤上書きを避けるためスキップする)。
+ * 書き込み直前の現在シート値と、調査結果生成時点(=シート取得時点)のスナップショットである
+ * `before`を、企業名と資金調達4列の両方について比較し、一致するものだけ書き込み対象にする。
+ * 行がシート上から消えている・企業名が一致しない(行のズレ)・値が変わっている(手動編集済み)
+ * のいずれかに該当する場合は誤上書きを避けるためスキップする。
  */
 export function buildFundingWrites(
   candidates: FundingUpdateCandidate[],
@@ -116,15 +135,28 @@ export function buildFundingWrites(
 
   for (const candidate of candidates) {
     const current = currentByIndex.get(candidate.rowIndex);
-    const stillMatches =
-      current !== undefined &&
+
+    if (current === undefined) {
+      staleSkips.push({ rowIndex: candidate.rowIndex, companyName: candidate.companyName, reason: "valueChanged" });
+      continue;
+    }
+
+    const companyMatches =
+      normalizeCellText(current.companyName) === normalizeCellText(candidate.companyName);
+
+    if (!companyMatches) {
+      staleSkips.push({ rowIndex: candidate.rowIndex, companyName: candidate.companyName, reason: "companyMismatch" });
+      continue;
+    }
+
+    const valuesMatch =
       current.fundingAmount === candidate.before.fundingAmount &&
       current.fundingRound === candidate.before.fundingRound &&
       current.fundingMonth === candidate.before.fundingMonth &&
       current.prTimesUrl === candidate.before.prTimesUrl;
 
-    if (!stillMatches) {
-      staleSkips.push({ rowIndex: candidate.rowIndex, companyName: candidate.companyName });
+    if (!valuesMatch) {
+      staleSkips.push({ rowIndex: candidate.rowIndex, companyName: candidate.companyName, reason: "valueChanged" });
       continue;
     }
 
