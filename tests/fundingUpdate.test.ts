@@ -1,0 +1,116 @@
+import { test, expect } from "@playwright/test";
+import { classifyFundingResults, type FundingResearchResult } from "../src/lib/fundingUpdate.js";
+import type { SheetRowData } from "../src/types.js";
+
+function makeRow(overrides: Partial<SheetRowData> = {}): SheetRowData {
+  return {
+    rowIndex: 2,
+    companyName: "サンプル株式会社",
+    companyUrl: "https://example.com/",
+    formUrl: "",
+    note: "",
+    dealStatus: "",
+    firstSentAt: null,
+    secondSentAt: null,
+    thirdSentAt: null,
+    email: "",
+    fundingAmount: "1億円",
+    fundingRound: "シードラウンド",
+    fundingMonth: "2025-01",
+    prTimesUrl: "https://prtimes.jp/old",
+    ...overrides,
+  };
+}
+
+test("classifyFundingResults: high確信度かつupdateCandidateは更新候補に分類される", () => {
+  const rows = [makeRow()];
+  const results: FundingResearchResult[] = [
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      found: true,
+      updateCandidate: true,
+      fundingAmount: "5億円",
+      fundingRound: "シリーズB",
+      fundingMonth: "2026-06",
+      sourceUrl: "https://prtimes.jp/new",
+      confidence: "high",
+      reason: "PR TIMESとNewsPicksの2ソースで一致",
+    },
+  ];
+
+  const { updateCandidates, needsReview, unchangedCount } = classifyFundingResults(results, rows);
+
+  expect(updateCandidates).toEqual([
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      before: { fundingAmount: "1億円", fundingRound: "シードラウンド", fundingMonth: "2025-01", prTimesUrl: "https://prtimes.jp/old" },
+      after: { fundingAmount: "5億円", fundingRound: "シリーズB", fundingMonth: "2026-06", prTimesUrl: "https://prtimes.jp/new" },
+    },
+  ]);
+  expect(needsReview).toEqual([]);
+  expect(unchangedCount).toBe(0);
+});
+
+test("classifyFundingResults: confidenceがlowなら要目視確認に回す", () => {
+  const rows = [makeRow()];
+  const results: FundingResearchResult[] = [
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      found: true,
+      updateCandidate: false,
+      confidence: "low",
+      reason: "ソースが1件のみで確信が持てない",
+    },
+  ];
+
+  const { updateCandidates, needsReview, unchangedCount } = classifyFundingResults(results, rows);
+
+  expect(updateCandidates).toEqual([]);
+  expect(needsReview).toEqual([
+    { rowIndex: 2, companyName: "サンプル株式会社", reason: "ソースが1件のみで確信が持てない" },
+  ]);
+  expect(unchangedCount).toBe(0);
+});
+
+test("classifyFundingResults: updateCandidateがfalseかつhigh確信度は変更なしカウントに入る", () => {
+  const rows = [makeRow()];
+  const results: FundingResearchResult[] = [
+    {
+      rowIndex: 2,
+      companyName: "サンプル株式会社",
+      found: true,
+      updateCandidate: false,
+      confidence: "high",
+      reason: "既存値と同じ最新ラウンドを確認",
+    },
+  ];
+
+  const { updateCandidates, needsReview, unchangedCount } = classifyFundingResults(results, rows);
+
+  expect(updateCandidates).toEqual([]);
+  expect(needsReview).toEqual([]);
+  expect(unchangedCount).toBe(1);
+});
+
+test("classifyFundingResults: シート上に該当行が無い結果は要目視確認に回す", () => {
+  const rows = [makeRow({ rowIndex: 2 })];
+  const results: FundingResearchResult[] = [
+    {
+      rowIndex: 999,
+      companyName: "消えた株式会社",
+      found: true,
+      updateCandidate: true,
+      confidence: "high",
+      reason: "調べたが該当行なし",
+    },
+  ];
+
+  const { needsReview } = classifyFundingResults(results, rows);
+
+  expect(needsReview).toEqual([
+    { rowIndex: 999, companyName: "消えた株式会社", reason: "シート上に該当行が見つかりません" },
+  ]);
+});
