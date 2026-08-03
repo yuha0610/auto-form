@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   parseGoal,
-  countFirstSent,
+  countSentActions,
   countRemainingBusinessDays,
   buildProgressMessage,
   getWeekStart,
@@ -52,18 +52,23 @@ test("parseGoal: 期限がパース不能な場合はnullを返す", () => {
   expect(parseGoal("1000", "")).toBeNull();
 });
 
-test("countFirstSent: 1回目列に値がある行だけカウントする", () => {
+test("countSentActions: 1〜3回目の送信日をすべて合算してカウントする", () => {
   const rows = [
     makeRow({ rowIndex: 2, firstSentAt: "2026/07/13" }),
     makeRow({ rowIndex: 3, firstSentAt: null }),
-    makeRow({ rowIndex: 4, firstSentAt: "2026/07/01" }),
+    makeRow({
+      rowIndex: 4,
+      firstSentAt: "2026/06/01",
+      secondSentAt: "2026/07/01",
+      thirdSentAt: "2026/07/31",
+    }),
   ];
-  expect(countFirstSent(rows)).toBe(2);
+  expect(countSentActions(rows)).toBe(4);
 });
 
-test("countFirstSent: 空白のみの値はカウントしない", () => {
+test("countSentActions: 空白のみの値はカウントしない", () => {
   const rows = [makeRow({ rowIndex: 2, firstSentAt: "  " })];
-  expect(countFirstSent(rows)).toBe(0);
+  expect(countSentActions(rows)).toBe(0);
 });
 
 test("countRemainingBusinessDays: 平日のみの期間は日数がそのままカウントされる", () => {
@@ -94,7 +99,7 @@ test("buildProgressMessage: 通常時は残り件数・必要ペース・今週�
   const weekStart = new Date(2026, 6, 13); // 07/13週
   const message = buildProgressMessage(156, goal, 9, 12, 1, weekStart);
   expect(message).toBe(
-    "累計(1回目): 156件 / 目標1000件(残り844件)\n残り営業日: 9日\n必要ペース: 94件/日\n今週(07/13週): 12件 / 週残り目標94件",
+    "累計: 156件 / 目標1000件(残り844件)\n残り営業日: 9日\n必要ペース: 94件/日\n今週(07/13週): 12件 / 週残り目標94件",
   );
 });
 
@@ -102,7 +107,7 @@ test("buildProgressMessage: 目標達成済みの場合は達成メッセージ�
   const goal = { targetCount: 1000, deadline: new Date(2026, 6, 31) };
   const weekStart = new Date(2026, 6, 13);
   const message = buildProgressMessage(1020, goal, 9, 12, 1, weekStart);
-  expect(message).toBe("累計(1回目): 1020件 / 目標1000件 達成済み🎉");
+  expect(message).toBe("累計: 1020件 / 目標1000件 達成済み🎉");
 });
 
 test("buildProgressMessage: 残り営業日0かつ未達成の場合は期限切れメッセージのみ返す(週次行なし)", () => {
@@ -110,7 +115,7 @@ test("buildProgressMessage: 残り営業日0かつ未達成の場合は期限切
   const weekStart = new Date(2026, 6, 13);
   const message = buildProgressMessage(800, goal, 0, 12, 0, weekStart);
   expect(message).toBe(
-    "累計(1回目): 800件 / 目標1000件(残り200件)\n期限(2026/07/31)を過ぎています",
+    "累計: 800件 / 目標1000件(残り200件)\n期限(2026/07/31)を過ぎています",
   );
 });
 
@@ -169,6 +174,25 @@ test("countSentThisWeek: 週の範囲内(月曜〜今日)の送信をカウン�
   expect(countSentThisWeek(rows, weekStart, today)).toBe(2);
 });
 
+test("countSentThisWeek: 2回目・3回目の送信日も範囲内ならカウントする", () => {
+  const weekStart = new Date(2026, 6, 13); // 月曜
+  const today = new Date(2026, 6, 16); // 木曜
+  const rows = [
+    makeRow({
+      rowIndex: 2,
+      firstSentAt: "2026/06/01",
+      secondSentAt: "2026/07/14", // 範囲内
+    }),
+    makeRow({
+      rowIndex: 3,
+      firstSentAt: "2026/05/01",
+      secondSentAt: "2026/06/01",
+      thirdSentAt: "2026/07/15", // 範囲内
+    }),
+  ];
+  expect(countSentThisWeek(rows, weekStart, today)).toBe(2);
+});
+
 test("countSentThisWeek: 来週の日付は範囲外としてカウントしない", () => {
   const weekStart = new Date(2026, 6, 13);
   const today = new Date(2026, 6, 16);
@@ -191,4 +215,22 @@ test("countSentThisMonth: 年が違う同じ月はカウントしない", () => 
   const today = new Date(2026, 6, 19); // 2026/07/19
   const rows = [makeRow({ rowIndex: 2, firstSentAt: "2025/07/10" })];
   expect(countSentThisMonth(rows, today)).toBe(0);
+});
+
+test("countSentThisMonth: 2回目・3回目の送信日も今月ならカウントする", () => {
+  const today = new Date(2026, 6, 19); // 2026/07/19
+  const rows = [
+    makeRow({
+      rowIndex: 2,
+      firstSentAt: "2026/06/01",
+      secondSentAt: "2026/07/05", // 今月
+    }),
+    makeRow({
+      rowIndex: 3,
+      firstSentAt: "2026/05/01",
+      secondSentAt: "2026/06/01",
+      thirdSentAt: "2026/07/10", // 今月
+    }),
+  ];
+  expect(countSentThisMonth(rows, today)).toBe(2);
 });

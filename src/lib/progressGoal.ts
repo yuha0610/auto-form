@@ -17,8 +17,19 @@ export function parseGoal(targetCountRaw: string, deadlineRaw: string): Goal | n
   return { targetCount, deadline };
 }
 
-export function countFirstSent(rows: SheetRowData[]): number {
-  return rows.filter((row) => (row.firstSentAt ?? "").trim() !== "").length;
+function countActionsMatching(rows: SheetRowData[], predicate: (date: Date) => boolean): number {
+  let count = 0;
+  for (const row of rows) {
+    for (const value of [row.firstSentAt, row.secondSentAt, row.thirdSentAt]) {
+      const date = parseSheetDate(value);
+      if (date && predicate(date)) count++;
+    }
+  }
+  return count;
+}
+
+export function countSentActions(rows: SheetRowData[]): number {
+  return countActionsMatching(rows, () => true);
 }
 
 function isWeekend(date: Date): boolean {
@@ -82,11 +93,10 @@ export function countSentThisWeek(
   );
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  return rows.filter((row) => {
-    const sentAt = parseSheetDate(row.firstSentAt);
-    if (!sentAt) return false;
-    return sentAt.getTime() >= weekStartMidnight.getTime() && sentAt.getTime() <= todayMidnight.getTime();
-  }).length;
+  return countActionsMatching(
+    rows,
+    (date) => date.getTime() >= weekStartMidnight.getTime() && date.getTime() <= todayMidnight.getTime(),
+  );
 }
 
 export function buildProgressMessage(
@@ -98,11 +108,11 @@ export function buildProgressMessage(
   weekStart: Date,
 ): string {
   if (totalSent >= goal.targetCount) {
-    return `累計(1回目): ${totalSent}件 / 目標${goal.targetCount}件 達成済み🎉`;
+    return `累計: ${totalSent}件 / 目標${goal.targetCount}件 達成済み🎉`;
   }
 
   const remainingCount = goal.targetCount - totalSent;
-  const base = `累計(1回目): ${totalSent}件 / 目標${goal.targetCount}件(残り${remainingCount}件)`;
+  const base = `累計: ${totalSent}件 / 目標${goal.targetCount}件(残り${remainingCount}件)`;
 
   if (remainingBusinessDays === 0) {
     return `${base}\n期限(${formatSheetDate(goal.deadline)})を過ぎています`;
@@ -118,11 +128,10 @@ export function buildProgressMessage(
 }
 
 export function countSentThisMonth(rows: SheetRowData[], today: Date): number {
-  return rows.filter((row) => {
-    const sentAt = parseSheetDate(row.firstSentAt);
-    if (!sentAt) return false;
-    return sentAt.getFullYear() === today.getFullYear() && sentAt.getMonth() === today.getMonth();
-  }).length;
+  return countActionsMatching(
+    rows,
+    (date) => date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth(),
+  );
 }
 
 export async function fetchGoal(

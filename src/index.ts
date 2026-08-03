@@ -13,7 +13,7 @@ import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount, notifySlackText } from "./lib/slackNotify.js";
 import {
   fetchGoal,
-  countFirstSent,
+  countSentActions,
   countRemainingBusinessDays,
   countSentThisWeek,
   countBusinessDaysInclusive,
@@ -279,7 +279,7 @@ program
         const goal = await fetchGoal(sheetsClient, spreadsheetId);
         if (goal) {
           const today = new Date();
-          const totalSent = countFirstSent(countRows);
+          const totalSent = countSentActions(countRows);
           const remainingBusinessDays = countRemainingBusinessDays(today, goal.deadline);
 
           const weekStart = getWeekStart(today);
