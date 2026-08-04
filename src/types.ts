@@ -23,6 +23,9 @@ export const COLUMNS = {
   fundingRound: "企業ラウンド",
   fundingMonth: "資金調達月",
   prTimesUrl: "PRTimes URL",
+  signalType: "検知シグナル種別",
+  signalDate: "検知日",
+  signalSourceUrl: "検知元URL",
 } as const;
 
 export interface SheetRowData {
@@ -40,6 +43,9 @@ export interface SheetRowData {
   fundingRound: string;
   fundingMonth: string;
   prTimesUrl: string;
+  signalType: string;
+  signalDate: string | null;
+  signalSourceUrl: string;
 }
 
 export type AttemptNumber = 1 | 2 | 3;

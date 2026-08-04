@@ -57,6 +57,9 @@ test("parseSheetRows: ヘッダー名から列を引いてSheetRowDataに変換�
       fundingRound: "",
       fundingMonth: "",
       prTimesUrl: "",
+      signalType: "",
+      signalDate: null,
+      signalSourceUrl: "",
     },
   ]);
 });
@@ -127,6 +130,9 @@ test("parseSheetRows: 実シートのように改行入りヘッダーでも正�
       fundingRound: "",
       fundingMonth: "",
       prTimesUrl: "",
+      signalType: "",
+      signalDate: null,
+      signalSourceUrl: "",
     },
   ]);
 });
@@ -192,4 +198,36 @@ test("parseSheetRows: 資金調達関連4列の値を読み込む", () => {
   expect(rows[0].fundingRound).toBe("シリーズB");
   expect(rows[0].fundingMonth).toBe("2026-05");
   expect(rows[0].prTimesUrl).toBe("https://prtimes.jp/example");
+});
+
+test("parseSheetRows: 検知シグナル関連3列の値を読み込む", () => {
+  const headerRow = [
+    COLUMNS.companyName,
+    COLUMNS.companyUrl,
+    COLUMNS.formUrl,
+    COLUMNS.note,
+    COLUMNS.dealStatus,
+    COLUMNS.firstSent,
+    COLUMNS.secondSent,
+    COLUMNS.thirdSent,
+    COLUMNS.email,
+    COLUMNS.fundingAmount,
+    COLUMNS.fundingRound,
+    COLUMNS.fundingMonth,
+    COLUMNS.prTimesUrl,
+    "検知シグナル種別",
+    "検知日",
+    "検知元URL",
+  ];
+  const dataRows = [
+    [
+      "サンプル株式会社", "https://example.com/", "", "", "", "", "", "", "",
+      "", "", "", "",
+      "資金調達", "2026/08/01", "https://prtimes.jp/example",
+    ],
+  ];
+  const rows = parseSheetRows({ headerRow, dataRows });
+  expect(rows[0].signalType).toBe("資金調達");
+  expect(rows[0].signalDate).toBe("2026/08/01");
+  expect(rows[0].signalSourceUrl).toBe("https://prtimes.jp/example");
 });
