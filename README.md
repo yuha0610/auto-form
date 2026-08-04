@@ -27,7 +27,8 @@ npm run playwright:install
 4. `.env.example` を `.env` にコピーし、`GOOGLE_SERVICE_ACCOUNT_KEY_PATH` と `GOOGLE_SHEET_ID` を設定する
 5. スプレッドシートのヘッダー行に「フォームURL」列を追加する
 6. スプレッドシートのヘッダー行に「メールアドレス」列を追加する(お問い合わせ先がメールアドレスのみの企業を記録する列。この列がないとツールが起動しない)
-7. (任意)Slackで「Incoming Webhooks」を有効化し、通知先チャンネルを選んでWebhook URLを発行、`.env` の `SLACK_WEBHOOK_URL` に設定する。設定しない場合はSlack通知がスキップされる
+7. スプレッドシートのヘッダー行に「検知シグナル種別」「検知日」「検知元URL」の3列を追加する(資金調達・求人などのシグナル検知結果を記録する列。この3列がないとツールが起動しない)
+8. (任意)Slackで「Incoming Webhooks」を有効化し、通知先チャンネルを選んでWebhook URLを発行、`.env` の `SLACK_WEBHOOK_URL` に設定する。設定しない場合はSlack通知がスキップされる
 
 ## 目標件数の管理(任意)
 
@@ -110,6 +111,35 @@ npm run dev -- --batch-size 10
    ```
 
 キーワードでの機械的な判定のため誤検出・見逃しがあり得る。`--apply`前に必ず候補一覧を確認すること。
+
+## 資金調達/求人シグナルの反映
+
+Workflow等で調査した資金調達・求人掲載などの「検知シグナル」結果を、スプレッドシートに反映するメンテナンススクリプト。既存企業の「検知シグナル種別」「検知日」「検知元URL」列の更新と、シートに無い新規企業の行追加の両方を行う。事前に「セットアップ」の手順7でこの3列をヘッダー行に追加しておくこと。
+
+調査結果は `data/signal-research-results.json` に、以下の形式で保存しておく:
+
+```json
+{
+  "existingSignals": [
+    { "rowIndex": 5, "companyName": "サンプル株式会社", "signalType": "資金調達", "signalDate": "2026/08/01", "sourceUrl": "https://prtimes.jp/...", "confidence": "high", "reason": "PR TIMESで確認" }
+  ],
+  "newCandidates": [
+    { "companyName": "新規株式会社", "companyUrl": "https://newco.example.com/", "signalType": "求人", "signalDate": "2026/08/01", "sourceUrl": "https://example.com/jobs", "confidence": "high", "reason": "Wantedlyで新規掲載" }
+  ]
+}
+```
+
+1. ドライラン実行して反映内容を確認する:
+   ```bash
+   npm run apply:signals
+   ```
+   既存企業の更新候補・新規追加候補・それぞれの要確認項目(confidenceがlow、既存シートとの重複、競合/非スタートアップキーワード一致など)が出力される。新規追加候補のうち、企業ページの内容審査が未実施(URLが無い、または取得/解析に失敗した)の行には `(内容未審査)` が付く。
+2. 出力内容(特に要確認項目・内容未審査の行)を目視確認する
+3. 問題なければ実際に反映する:
+   ```bash
+   npm run apply:signals -- --apply
+   ```
+   書き込み直前にシートを再取得し、既存企業の更新は手動編集や行ズレが無いか、新規企業の追加は手動追加などで重複していないかを再確認したうえで反映する。再確認でスキップされた行はその場でログに出力される。
 
 ## 学習塾・セミナー系(非スタートアップ)のスクリーニング
 
