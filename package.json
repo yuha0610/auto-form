@@ -14,7 +14,8 @@
     "cleanup:company-names": "tsx scripts/cleanupCompanyData.ts",
     "screen:competitors": "tsx scripts/screenCompetitors.ts",
     "screen:non-startup": "tsx scripts/screenNonStartup.ts",
-    "update:funding-info": "tsx scripts/updateFundingInfo.ts"
+    "update:funding-info": "tsx scripts/updateFundingInfo.ts",
+    "apply:signals": "tsx scripts/applySignals.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",
