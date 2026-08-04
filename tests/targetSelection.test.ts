@@ -4,6 +4,7 @@ import {
   formatSheetDate,
   isSkipped,
   getNextAttempt,
+  hasRecentSignal,
   selectBatch,
   dedupeByCompanyName,
   summarizeSkipped,
@@ -22,6 +23,9 @@ function makeRow(overrides: Partial<SheetRowData>): SheetRowData {
     secondSentAt: null,
     thirdSentAt: null,
     email: "",
+    signalType: "",
+    signalDate: null,
+    signalSourceUrl: "",
     ...overrides,
   };
 }
@@ -193,4 +197,32 @@ test("summarizeSkipped: メールアドレス登録済みの行も区分とし�
     { reason: "フォーム無", companies: ["A社"] },
     { reason: "メールアドレス登録済み", companies: ["B社"] },
   ]);
+});
+
+test("hasRecentSignal: 検知日が14日以内ならtrue", () => {
+  const row = makeRow({ signalDate: "2026/07/01" });
+  const today = new Date(2026, 6, 15); // 14日後
+  expect(hasRecentSignal(row, today)).toBe(true);
+});
+
+test("hasRecentSignal: 検知日が14日を超えていればfalse", () => {
+  const row = makeRow({ signalDate: "2026/07/01" });
+  const today = new Date(2026, 6, 16); // 15日後
+  expect(hasRecentSignal(row, today)).toBe(false);
+});
+
+test("hasRecentSignal: 検知日が無ければfalse", () => {
+  const row = makeRow({ signalDate: null });
+  expect(hasRecentSignal(row, new Date(2026, 6, 15))).toBe(false);
+});
+
+test("selectBatch: 検知シグナルがある対象を先頭に並べ替える", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A" }),
+    makeRow({ rowIndex: 3, companyName: "B", signalDate: "2026/07/10" }),
+    makeRow({ rowIndex: 4, companyName: "C" }),
+  ];
+  const today = new Date(2026, 6, 15); // Bの検知日から5日後(14日以内)
+  const batch = selectBatch(rows, 3, today);
+  expect(batch.map((t) => t.row.companyName)).toEqual(["B", "A", "C"]);
 });

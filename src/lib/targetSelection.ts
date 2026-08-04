@@ -84,6 +84,12 @@ export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | 
   return daysBetween(second, today) >= FOLLOW_UP_INTERVAL_DAYS ? 3 : null;
 }
 
+export function hasRecentSignal(row: SheetRowData, today: Date): boolean {
+  const signalDate = parseSheetDate(row.signalDate);
+  if (!signalDate) return false;
+  return daysBetween(signalDate, today) <= FOLLOW_UP_INTERVAL_DAYS;
+}
+
 function normalizeCompanyName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -119,13 +125,19 @@ export function selectBatch(
   batchSize: number,
   today: Date,
 ): EligibleTarget[] {
-  const result: EligibleTarget[] = [];
+  const eligible: EligibleTarget[] = [];
   for (const row of rows) {
-    if (result.length >= batchSize) break;
     const attemptNumber = getNextAttempt(row, today);
     if (attemptNumber !== null) {
-      result.push({ row, attemptNumber });
+      eligible.push({ row, attemptNumber });
     }
   }
-  return result;
+
+  const sorted = [...eligible].sort((a, b) => {
+    const aHot = hasRecentSignal(a.row, today) ? 0 : 1;
+    const bHot = hasRecentSignal(b.row, today) ? 0 : 1;
+    return aHot - bHot;
+  });
+
+  return sorted.slice(0, batchSize);
 }
