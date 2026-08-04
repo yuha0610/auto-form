@@ -21,6 +21,7 @@ import {
 } from "../src/lib/signalDetection.js";
 import { matchPageContent as matchCompetitorPageContent, resolveOverviewUrl } from "../src/lib/competitorScreening.js";
 import { matchPageContent as matchNonStartupPageContent } from "../src/lib/nonStartupScreening.js";
+import { extractCompanyCoreName } from "../src/lib/textNormalize.js";
 
 const RESULTS_PATH = "data/signal-research-results.json";
 const TIMEOUT_MS = 10_000;
@@ -46,6 +47,12 @@ async function loadResults(): Promise<SignalResearchResult> {
   }
 }
 
+/** 企業名の重複判定キー。コア名が空になる企業名は、完全一致でのみ突き合わせる。 */
+function dedupKey(companyName: string): string {
+  const coreName = extractCompanyCoreName(companyName);
+  return coreName !== "" ? coreName : `__exact__:${companyName}`;
+}
+
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { "User-Agent": UA },
@@ -55,8 +62,16 @@ async function fetchText(url: string): Promise<string> {
   return await res.text();
 }
 
-async function passesContentScreening(row: NewCompanyRow): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (!row.companyUrl) return { ok: true };
+/**
+ * ページ内容によるキーワード審査の結果。
+ * `ok: true`の場合、`screened`で「実際に内容を確認して問題なしと判定した(true)」と
+ * 「URLが無い、または取得/解析に失敗したため未審査のまま通過させた(false)」を区別する。
+ * 呼び出し側はこれを使って、未審査の候補をドライラン出力で目視できるようにする。
+ */
+async function passesContentScreening(
+  row: NewCompanyRow,
+): Promise<{ ok: true; screened: boolean } | { ok: false; reason: string }> {
+  if (!row.companyUrl) return { ok: true, screened: false };
 
   try {
     const topHtml = await fetchText(row.companyUrl);
@@ -81,9 +96,9 @@ async function passesContentScreening(row: NewCompanyRow): Promise<{ ok: true } 
       return { ok: false, reason: `ページ内容に「${nonStartupMatch.keyword}」(非スタートアップ)` };
     }
 
-    return { ok: true };
+    return { ok: true, screened: true };
   } catch {
-    return { ok: true };
+    return { ok: true, screened: false };
   }
 }
 
@@ -122,11 +137,13 @@ async function main(): Promise<void> {
     classifyNewCandidates(results.newCandidates, rows);
 
   const newRows: NewCompanyRow[] = [];
+  const screenedFlags = new Map<NewCompanyRow, boolean>();
   const contentReview: NewRowReviewItem[] = [];
   for (const row of provisionalRows) {
     const screening = await passesContentScreening(row);
     if (screening.ok) {
       newRows.push(row);
+      screenedFlags.set(row, screening.screened);
     } else {
       contentReview.push({ companyName: row.companyName, reason: screening.reason });
     }
@@ -134,7 +151,8 @@ async function main(): Promise<void> {
 
   console.log(`\n=== 新規追加候補: ${newRows.length}件 ===`);
   for (const row of newRows) {
-    console.log(`  ${row.companyName} (${row.companyUrl})`);
+    const unscreenedSuffix = screenedFlags.get(row) ? "" : " (内容未審査)";
+    console.log(`  ${row.companyName} (${row.companyUrl})${unscreenedSuffix}`);
     console.log(`    検知シグナル種別: ${row.signalType} / 検知日: ${row.signalDate} / URL: ${row.signalSourceUrl}`);
   }
 
@@ -167,9 +185,36 @@ async function main(): Promise<void> {
   console.log(`\n既存企業へのシグナル反映: ${updateCandidates.length - staleSkips.length}件`);
 
   if (newRows.length > 0) {
-    const rowValues = newRows.map((row) => buildNewRowValues(row, currentRaw.headerRow));
-    await appendRows(client, spreadsheetId, sheetName, rowValues);
-    console.log(`新規企業の追加: ${newRows.length}件`);
+    // ドライラン時点の`rows`ではなく、書き込み直前の`currentRows`に対して重複チェックをやり直す。
+    // ドライランからこのapply実行までの間に手動で同名企業が追加されていた場合の重複追加を防ぐ。
+    const { provisionalRows: freshProvisionalRows } = classifyNewCandidates(results.newCandidates, currentRows);
+    const freshKeys = new Set(freshProvisionalRows.map((row) => dedupKey(row.companyName)));
+
+    const rowsToAppend: NewCompanyRow[] = [];
+    const newRowSkips: { companyName: string; reason: string }[] = [];
+    for (const row of newRows) {
+      if (freshKeys.has(dedupKey(row.companyName))) {
+        rowsToAppend.push(row);
+      } else {
+        newRowSkips.push({
+          companyName: row.companyName,
+          reason: "書き込み直前の再確認で既存シートに同名企業が見つかったためスキップ",
+        });
+      }
+    }
+
+    if (newRowSkips.length > 0) {
+      console.log(`\n書き込み直前の再確認でスキップした新規行: ${newRowSkips.length}件`);
+      for (const skip of newRowSkips) {
+        console.log(`  ${skip.companyName}: ${skip.reason}`);
+      }
+    }
+
+    if (rowsToAppend.length > 0) {
+      const rowValues = rowsToAppend.map((row) => buildNewRowValues(row, currentRaw.headerRow));
+      await appendRows(client, spreadsheetId, sheetName, rowValues);
+      console.log(`新規企業の追加: ${rowsToAppend.length}件`);
+    }
   }
 }
 
