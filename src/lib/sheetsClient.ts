@@ -107,3 +107,21 @@ export async function deleteRows(
     requestBody: { requests },
   });
 }
+
+/** シート末尾に新規行を追加する(1行=1配列、複数行まとめて渡せる)。 */
+export async function appendRows(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetName: string,
+  rows: string[][],
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  await client.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${sheetName}!A1`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: rows },
+  });
+}
