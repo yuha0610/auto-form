@@ -194,6 +194,9 @@ export interface NewCandidateClassification {
 /**
  * 資金調達/求人で新規発掘した企業を、confidence・既存シートとの重複(企業名の表記ゆれ含む)・
  * 競合/非スタートアップの企業名キーワードで判定する。
+ * 同一バッチ内(`candidates`)に表記ゆれで同じ企業が複数含まれる場合も、
+ * 全チェックを通過してprovisionalRowsに入った候補のコア名をその都度既存名セットへ追加することで、
+ * 後続の同名候補を重複として検出する。
  * ページ内容によるキーワード判定はI/O(URL取得)を伴うためこの関数の対象外とし、
  * 呼び出し側(scripts/applySignals.ts)で`provisionalRows`に対して別途行う。
  */
@@ -230,6 +233,10 @@ export function classifyNewCandidates(
     if (nonStartupMatch) {
       needsReview.push({ companyName: candidate.companyName, reason: `企業名に「${nonStartupMatch}」(非スタートアップ)` });
       continue;
+    }
+
+    if (coreName !== "") {
+      existingCoreNames.add(coreName);
     }
 
     provisionalRows.push({

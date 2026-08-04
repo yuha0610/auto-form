@@ -220,6 +220,41 @@ test("classifyNewCandidates: 既存シートに同名企業(表記ゆれ含む)�
   expect(needsReview).toEqual([{ companyName: "株式会社サンプル", reason: "既存シートに同名企業が存在" }]);
 });
 
+test("classifyNewCandidates: 同一バッチ内に表記ゆれの同名企業が複数あれば2件目以降は要確認に回す", () => {
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "サンプル株式会社",
+      companyUrl: "https://example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://prtimes.jp/x",
+      confidence: "high",
+      reason: "PR TIMESで確認",
+    },
+    {
+      companyName: "株式会社サンプル",
+      companyUrl: "https://example.com/",
+      signalType: "求人",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://example.com/jobs",
+      confidence: "high",
+      reason: "Wantedlyで新規掲載",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, []);
+
+  expect(provisionalRows).toEqual([
+    {
+      companyName: "サンプル株式会社",
+      companyUrl: "https://example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      signalSourceUrl: "https://prtimes.jp/x",
+    },
+  ]);
+  expect(needsReview).toEqual([{ companyName: "株式会社サンプル", reason: "既存シートに同名企業が存在" }]);
+});
+
 test("classifyNewCandidates: 企業名が競合キーワードに一致すれば要確認に回す", () => {
   const results: NewCandidateResult[] = [
     {
