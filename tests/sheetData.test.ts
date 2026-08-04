@@ -36,9 +36,12 @@ test("parseSheetRows: ヘッダー名から列を引いてSheetRowDataに変換�
     COLUMNS.fundingRound,
     COLUMNS.fundingMonth,
     COLUMNS.prTimesUrl,
+    "検知シグナル種別",
+    "検知日",
+    "検知元URL",
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "", "", "", "", "", "", "", ""],
+    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "", "", "", "", "", "", "", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows).toEqual([
@@ -109,9 +112,12 @@ test("parseSheetRows: 実シートのように改行入りヘッダーでも正�
     COLUMNS.fundingRound,
     COLUMNS.fundingMonth,
     COLUMNS.prTimesUrl,
+    "検知シグナル種別",
+    "検知日",
+    "検知元URL",
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "2026-07-01", "", "", "", "", "", "", ""],
+    ["サンプル株式会社", "https://example.com/", "", "フォーム無", "無", "2026-07-01", "", "", "", "", "", "", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows).toEqual([
@@ -152,9 +158,12 @@ test("parseSheetRows: メールアドレス列の値を読み込む", () => {
     COLUMNS.fundingRound,
     COLUMNS.fundingMonth,
     COLUMNS.prTimesUrl,
+    "検知シグナル種別",
+    "検知日",
+    "検知元URL",
   ];
   const dataRows = [
-    ["サンプル株式会社", "https://example.com/", "", "", "", "", "", "", "info@example.com", "", "", "", ""],
+    ["サンプル株式会社", "https://example.com/", "", "", "", "", "", "", "info@example.com", "", "", "", "", "", "", ""],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });
   expect(rows[0].email).toBe("info@example.com");
@@ -175,6 +184,9 @@ test("parseSheetRows: 資金調達関連4列の値を読み込む", () => {
     COLUMNS.fundingRound,
     COLUMNS.fundingMonth,
     COLUMNS.prTimesUrl,
+    "検知シグナル種別",
+    "検知日",
+    "検知元URL",
   ];
   const dataRows = [
     [
@@ -191,6 +203,9 @@ test("parseSheetRows: 資金調達関連4列の値を読み込む", () => {
       "シリーズB",
       "2026-05",
       "https://prtimes.jp/example",
+      "",
+      "",
+      "",
     ],
   ];
   const rows = parseSheetRows({ headerRow, dataRows });

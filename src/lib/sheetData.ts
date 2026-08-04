@@ -33,14 +33,6 @@ export function findColumnIndex(headerRow: string[], columnName: string): number
   return index;
 }
 
-function findColumnIndexOptional(headerRow: string[], columnName: string): number {
-  try {
-    return findColumnIndex(headerRow, columnName);
-  } catch {
-    return -1;
-  }
-}
-
 export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
   const col = {
     companyName: findColumnIndex(raw.headerRow, COLUMNS.companyName),
@@ -56,9 +48,9 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     fundingRound: findColumnIndex(raw.headerRow, COLUMNS.fundingRound),
     fundingMonth: findColumnIndex(raw.headerRow, COLUMNS.fundingMonth),
     prTimesUrl: findColumnIndex(raw.headerRow, COLUMNS.prTimesUrl),
-    signalType: findColumnIndexOptional(raw.headerRow, COLUMNS.signalType),
-    signalDate: findColumnIndexOptional(raw.headerRow, COLUMNS.signalDate),
-    signalSourceUrl: findColumnIndexOptional(raw.headerRow, COLUMNS.signalSourceUrl),
+    signalType: findColumnIndex(raw.headerRow, COLUMNS.signalType),
+    signalDate: findColumnIndex(raw.headerRow, COLUMNS.signalDate),
+    signalSourceUrl: findColumnIndex(raw.headerRow, COLUMNS.signalSourceUrl),
   };
 
   return raw.dataRows.map((cells, i) => ({
@@ -76,8 +68,8 @@ export function parseSheetRows(raw: RawSheetData): SheetRowData[] {
     fundingRound: cells[col.fundingRound] ?? "",
     fundingMonth: cells[col.fundingMonth] ?? "",
     prTimesUrl: cells[col.prTimesUrl] ?? "",
-    signalType: col.signalType >= 0 ? (cells[col.signalType] ?? "") : "",
-    signalDate: col.signalDate >= 0 ? (cells[col.signalDate] || null) : null,
-    signalSourceUrl: col.signalSourceUrl >= 0 ? (cells[col.signalSourceUrl] ?? "") : "",
+    signalType: cells[col.signalType] ?? "",
+    signalDate: cells[col.signalDate] || null,
+    signalSourceUrl: cells[col.signalSourceUrl] ?? "",
   }));
 }
