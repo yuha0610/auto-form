@@ -1,6 +1,9 @@
 import { COLUMNS, type SheetRowData } from "../types.js";
-import { normalizeCellText } from "./textNormalize.js";
+import { normalizeCellText, extractCompanyCoreName } from "./textNormalize.js";
 import { parseSheetDate } from "./targetSelection.js";
+import { findColumnIndex } from "./sheetData.js";
+import { matchCompanyName as matchCompetitorName } from "./competitorScreening.js";
+import { matchCompanyName as matchNonStartupName } from "./nonStartupScreening.js";
 
 export interface SignalFields {
   signalType: string;
@@ -158,4 +161,96 @@ export function buildSignalWrites(
   }
 
   return { writes, staleSkips };
+}
+
+export interface NewCandidateResult {
+  companyName: string;
+  companyUrl: string;
+  signalType: string;
+  signalDate: string;
+  sourceUrl: string;
+  confidence: "high" | "low";
+  reason: string;
+}
+
+export interface NewCompanyRow {
+  companyName: string;
+  companyUrl: string;
+  signalType: string;
+  signalDate: string;
+  signalSourceUrl: string;
+}
+
+export interface NewRowReviewItem {
+  companyName: string;
+  reason: string;
+}
+
+export interface NewCandidateClassification {
+  provisionalRows: NewCompanyRow[];
+  needsReview: NewRowReviewItem[];
+}
+
+/**
+ * 資金調達/求人で新規発掘した企業を、confidence・既存シートとの重複(企業名の表記ゆれ含む)・
+ * 競合/非スタートアップの企業名キーワードで判定する。
+ * ページ内容によるキーワード判定はI/O(URL取得)を伴うためこの関数の対象外とし、
+ * 呼び出し側(scripts/applySignals.ts)で`provisionalRows`に対して別途行う。
+ */
+export function classifyNewCandidates(
+  candidates: NewCandidateResult[],
+  existingRows: SheetRowData[],
+): NewCandidateClassification {
+  const existingCoreNames = new Set(
+    existingRows.map((row) => extractCompanyCoreName(row.companyName)).filter((name) => name !== ""),
+  );
+
+  const provisionalRows: NewCompanyRow[] = [];
+  const needsReview: NewRowReviewItem[] = [];
+
+  for (const candidate of candidates) {
+    if (candidate.confidence === "low") {
+      needsReview.push({ companyName: candidate.companyName, reason: candidate.reason });
+      continue;
+    }
+
+    const coreName = extractCompanyCoreName(candidate.companyName);
+    if (coreName !== "" && existingCoreNames.has(coreName)) {
+      needsReview.push({ companyName: candidate.companyName, reason: "既存シートに同名企業が存在" });
+      continue;
+    }
+
+    const competitorMatch = matchCompetitorName(candidate.companyName);
+    if (competitorMatch) {
+      needsReview.push({ companyName: candidate.companyName, reason: `企業名に「${competitorMatch}」(競合)` });
+      continue;
+    }
+
+    const nonStartupMatch = matchNonStartupName(candidate.companyName);
+    if (nonStartupMatch) {
+      needsReview.push({ companyName: candidate.companyName, reason: `企業名に「${nonStartupMatch}」(非スタートアップ)` });
+      continue;
+    }
+
+    provisionalRows.push({
+      companyName: candidate.companyName,
+      companyUrl: candidate.companyUrl,
+      signalType: candidate.signalType,
+      signalDate: candidate.signalDate,
+      signalSourceUrl: candidate.sourceUrl,
+    });
+  }
+
+  return { provisionalRows, needsReview };
+}
+
+/** ヘッダー順に合わせて新規行の値配列を組み立てる(該当しない列は空文字)。 */
+export function buildNewRowValues(row: NewCompanyRow, headerRow: string[]): string[] {
+  const values = new Array(headerRow.length).fill("");
+  values[findColumnIndex(headerRow, COLUMNS.companyName)] = row.companyName;
+  values[findColumnIndex(headerRow, COLUMNS.companyUrl)] = row.companyUrl;
+  values[findColumnIndex(headerRow, COLUMNS.signalType)] = row.signalType;
+  values[findColumnIndex(headerRow, COLUMNS.signalDate)] = row.signalDate;
+  values[findColumnIndex(headerRow, COLUMNS.signalSourceUrl)] = row.signalSourceUrl;
+  return values;
 }

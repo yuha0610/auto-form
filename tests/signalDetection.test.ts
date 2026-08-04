@@ -3,7 +3,11 @@ import {
   classifyExistingSignals,
   buildSignalWrites,
   SIGNAL_COLUMN_NAMES,
+  classifyNewCandidates,
+  buildNewRowValues,
   type ExistingSignalResult,
+  type NewCandidateResult,
+  type NewCompanyRow,
 } from "../src/lib/signalDetection.js";
 import { COLUMNS } from "../src/types.js";
 import type { SheetRowData } from "../src/types.js";
@@ -179,4 +183,121 @@ test("buildSignalWrites: 行がズレて企業名が一致しない場合は書�
 
   expect(writes).toEqual([]);
   expect(staleSkips).toEqual([{ rowIndex: 2, companyName: "サンプル株式会社", reason: "companyMismatch" }]);
+});
+
+test("classifyNewCandidates: confidenceがlowなら要確認に回す", () => {
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "新規株式会社",
+      companyUrl: "https://example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://prtimes.jp/x",
+      confidence: "low",
+      reason: "ソース1件のみ",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, []);
+  expect(provisionalRows).toEqual([]);
+  expect(needsReview).toEqual([{ companyName: "新規株式会社", reason: "ソース1件のみ" }]);
+});
+
+test("classifyNewCandidates: 既存シートに同名企業(表記ゆれ含む)があれば要確認に回す", () => {
+  const existingRows = [makeRow({ companyName: "サンプル株式会社" })];
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "株式会社サンプル",
+      companyUrl: "https://example.com/",
+      signalType: "求人",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://example.com/jobs",
+      confidence: "high",
+      reason: "Wantedlyで新規掲載",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, existingRows);
+  expect(provisionalRows).toEqual([]);
+  expect(needsReview).toEqual([{ companyName: "株式会社サンプル", reason: "既存シートに同名企業が存在" }]);
+});
+
+test("classifyNewCandidates: 企業名が競合キーワードに一致すれば要確認に回す", () => {
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "株式会社ABC人材紹介",
+      companyUrl: "https://example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://prtimes.jp/x",
+      confidence: "high",
+      reason: "PR TIMESで確認",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, []);
+  expect(provisionalRows).toEqual([]);
+  expect(needsReview).toEqual([{ companyName: "株式会社ABC人材紹介", reason: "企業名に「人材紹介」(競合)" }]);
+});
+
+test("classifyNewCandidates: 企業名が非スタートアップキーワードに一致すれば要確認に回す", () => {
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "株式会社ABC学習塾",
+      companyUrl: "https://example.com/",
+      signalType: "求人",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://example.com/jobs",
+      confidence: "high",
+      reason: "Greenで新規掲載",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, []);
+  expect(provisionalRows).toEqual([]);
+  expect(needsReview).toEqual([{ companyName: "株式会社ABC学習塾", reason: "企業名に「学習塾」(非スタートアップ)" }]);
+});
+
+test("classifyNewCandidates: 上記すべてを通過すれば新規行の候補になる", () => {
+  const results: NewCandidateResult[] = [
+    {
+      companyName: "新規株式会社",
+      companyUrl: "https://newco.example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      sourceUrl: "https://prtimes.jp/x",
+      confidence: "high",
+      reason: "PR TIMESで確認",
+    },
+  ];
+  const { provisionalRows, needsReview } = classifyNewCandidates(results, []);
+  expect(needsReview).toEqual([]);
+  expect(provisionalRows).toEqual([
+    {
+      companyName: "新規株式会社",
+      companyUrl: "https://newco.example.com/",
+      signalType: "資金調達",
+      signalDate: "2026/08/01",
+      signalSourceUrl: "https://prtimes.jp/x",
+    },
+  ]);
+});
+
+test("buildNewRowValues: ヘッダー順に値をマッピングし、対象外の列は空文字にする", () => {
+  const headerRow = [
+    COLUMNS.companyName, COLUMNS.companyUrl, COLUMNS.formUrl, COLUMNS.note, COLUMNS.dealStatus,
+    COLUMNS.firstSent, COLUMNS.secondSent, COLUMNS.thirdSent, COLUMNS.email,
+    COLUMNS.fundingAmount, COLUMNS.fundingRound, COLUMNS.fundingMonth, COLUMNS.prTimesUrl,
+    COLUMNS.signalType, COLUMNS.signalDate, COLUMNS.signalSourceUrl,
+  ];
+  const row: NewCompanyRow = {
+    companyName: "新規株式会社",
+    companyUrl: "https://newco.example.com/",
+    signalType: "資金調達",
+    signalDate: "2026/08/01",
+    signalSourceUrl: "https://prtimes.jp/x",
+  };
+  const values = buildNewRowValues(row, headerRow);
+  expect(values).toEqual([
+    "新規株式会社", "https://newco.example.com/", "", "", "",
+    "", "", "", "",
+    "", "", "", "",
+    "資金調達", "2026/08/01", "https://prtimes.jp/x",
+  ]);
 });
