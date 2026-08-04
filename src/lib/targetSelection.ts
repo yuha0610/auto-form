@@ -10,7 +10,7 @@ const SKIP_MARKERS = [
   "CAPTCHA",
 ];
 
-const FOLLOW_UP_INTERVAL_DAYS = 30;
+const FOLLOW_UP_INTERVAL_DAYS = 14;
 
 export function parseSheetDate(value: string | null): Date | null {
   if (!value) return null;

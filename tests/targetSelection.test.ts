@@ -97,25 +97,24 @@ test("getNextAttempt: 3回目済みなら対象外", () => {
   expect(getNextAttempt(row, today)).toBeNull();
 });
 
-test("getNextAttempt: 1回目から30日未満なら2回目は対象外", () => {
-  const row = makeRow({ firstSentAt: "2026/06/20" });
-  const today = new Date(2026, 6, 12); // 22日後...ではなく20日後未満のケースを作る
-  const notYet = new Date(2026, 6, 15); // 2026/06/20 -> 2026/07/15 は25日後
+test("getNextAttempt: 1回目から14日未満なら2回目は対象外", () => {
+  const row = makeRow({ firstSentAt: "2026/07/01" });
+  const notYet = new Date(2026, 6, 10); // 9日後
   expect(getNextAttempt(row, notYet)).toBeNull();
 });
 
-test("getNextAttempt: 1回目から30日以上経過していれば2回目が対象", () => {
-  const row = makeRow({ firstSentAt: "2026/06/01" });
-  const today = new Date(2026, 6, 1); // 2026/07/01、30日後
+test("getNextAttempt: 1回目から14日以上経過していれば2回目が対象", () => {
+  const row = makeRow({ firstSentAt: "2026/07/01" });
+  const today = new Date(2026, 6, 15); // 14日後
   expect(getNextAttempt(row, today)).toBe(2);
 });
 
-test("getNextAttempt: 2回目から30日以上経過していれば3回目が対象", () => {
+test("getNextAttempt: 2回目から14日以上経過していれば3回目が対象", () => {
   const row = makeRow({
     firstSentAt: "2026/05/01",
-    secondSentAt: "2026/06/01",
+    secondSentAt: "2026/07/01",
   });
-  const today = new Date(2026, 6, 1); // 2回目から30日後
+  const today = new Date(2026, 6, 15); // 2回目から14日後
   expect(getNextAttempt(row, today)).toBe(3);
 });
 
