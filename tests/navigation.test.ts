@@ -68,7 +68,7 @@ test("初回のgotoが成功すればリトライしない", async ({ page }) =>
     await route.fulfill({ contentType: "text/html", body: "<html><body>ok</body></html>" });
   });
 
-  await gotoWithRetry(page, "https://example.test/ok", { waitUntil: "domcontentloaded" }, 10);
+  await gotoWithRetry(page, "https://example.test/ok", { waitUntil: "domcontentloaded" }, 10, 10);
 
   expect(callCount).toBe(1);
 });
@@ -102,6 +102,7 @@ test("リトライ可能なエラーで初回失敗・2回目成功した場合�
     "https://example.test/retry-success",
     { waitUntil: "domcontentloaded" },
     50,
+    10,
   );
 
   expect(callCount).toBe(2);
@@ -149,4 +150,34 @@ test("1回目が接続エラー・2回目がタイムアウトの場合はリト
   expect(error).toBeInstanceOf(NavigationError);
   expect((error as InstanceType<typeof NavigationError>).label).toBe("タイムアウト(再試行済・要確認)");
   expect(callCount).toBe(2);
+});
+
+test("x-cloak等でJS初期化まで入力欄が非表示のページでは、見えるようになるまで待ってから返る", async ({
+  page,
+}) => {
+  await page.route("https://example.test/js-hydrate", async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<html><head><style>[x-cloak]{display:none!important}</style></head>
+        <body x-cloak><input name="company" /></body></html>`,
+    });
+  });
+
+  const removeCloakAfterDelay = async () => {
+    await page.waitForSelector("body[x-cloak]", { state: "attached" });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await page.evaluate(() => document.body.removeAttribute("x-cloak"));
+  };
+
+  const start = Date.now();
+  await Promise.all([
+    gotoWithRetry(page, "https://example.test/js-hydrate", { waitUntil: "domcontentloaded" }, 10, 2000),
+    removeCloakAfterDelay(),
+  ]);
+  const elapsed = Date.now() - start;
+
+  // 200ms待ってからcloakを外しているので、それより早く返っていたら
+  // 「見えるまで待つ」ができておらず非表示のまま先に進んだことになる。
+  expect(elapsed).toBeGreaterThanOrEqual(180);
+  expect(await page.locator("input[name='company']").isVisible()).toBe(true);
 });

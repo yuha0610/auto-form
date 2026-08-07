@@ -50,14 +50,32 @@ export class NavigationError extends Error {
 
 const RETRY_DELAY_MS = 3000;
 
+/**
+ * Alpine.js等のx-cloakパターンではJS初期化完了までbody全体がdisplay:noneになり、
+ * domcontentloadedの時点では入力欄が軒並み非表示でfillByKeywordが全滅してしまう。
+ * 入力欄が1つでも見えるまで短時間だけ待ち、フォームが無いページでは即座に諦める。
+ */
+const FORM_READY_TIMEOUT_MS = 3000;
+
+async function waitForFormReady(page: Page, timeoutMs: number): Promise<void> {
+  await page
+    .waitForSelector("input:not([type='hidden']), textarea", {
+      state: "visible",
+      timeout: timeoutMs,
+    })
+    .catch(() => {});
+}
+
 export async function gotoWithRetry(
   page: Page,
   url: string,
   options: Parameters<Page["goto"]>[1],
   retryDelayMs: number = RETRY_DELAY_MS,
+  formReadyTimeoutMs: number = FORM_READY_TIMEOUT_MS,
 ): Promise<void> {
   try {
     await page.goto(url, options);
+    await waitForFormReady(page, formReadyTimeoutMs);
   } catch (error) {
     const classification = classifyGotoError(error);
     if (!classification.retryable) {
@@ -68,6 +86,7 @@ export async function gotoWithRetry(
 
     try {
       await page.goto(url, options);
+      await waitForFormReady(page, formReadyTimeoutMs);
     } catch (retryError) {
       const retryClassification = classifyGotoError(retryError);
       throw new NavigationError(retryClassification.label, retryError);
