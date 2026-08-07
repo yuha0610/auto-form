@@ -83,11 +83,22 @@ export async function collectFieldCandidates(page: Page): Promise<FieldCandidate
   return candidates;
 }
 
-async function fillByKeyword(page: Page, keywords: string[], value: string): Promise<boolean> {
+async function fillByKeyword(
+  page: Page,
+  keywords: string[],
+  value: string,
+  usedIndices: Set<number>,
+): Promise<boolean> {
   const inputs = fillableInputsLocator(page);
   const count = await inputs.count();
 
   for (let i = 0; i < count; i++) {
+    // 他のフィールド用に既に入力済みの欄は対象にしない。例えばname属性が
+    // "company_name"の欄は"company"にも"name"にもマッチしてしまうため、
+    // これがないと会社名欄が後から氏名で上書きされてしまう。
+    if (usedIndices.has(i)) {
+      continue;
+    }
     const input = inputs.nth(i);
     const attrs = await getInputAttrs(input);
 
@@ -100,6 +111,7 @@ async function fillByKeyword(page: Page, keywords: string[], value: string): Pro
       }
       try {
         await input.fill(value, { timeout: 5000 });
+        usedIndices.add(i);
         return true;
       } catch (error) {
         console.warn(`入力欄への入力に失敗したためスキップします: ${String(error)}`);
@@ -133,8 +145,9 @@ export async function fillForm(page: Page, template: Template): Promise<FillResu
     entries.push(["senderTitle", template.senderTitle]);
   }
 
+  const usedIndices = new Set<number>();
   for (const [field, value] of entries) {
-    const filled = await fillByKeyword(page, FIELD_KEYWORDS[field], value);
+    const filled = await fillByKeyword(page, FIELD_KEYWORDS[field], value, usedIndices);
     (filled ? filledFields : missingFields).push(field);
   }
 

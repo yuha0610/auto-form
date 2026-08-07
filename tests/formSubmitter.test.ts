@@ -83,6 +83,17 @@ test("name属性がキーワードと一致してもtype=buttonの入力欄は�
   await expect(page.locator("div input")).toHaveValue(template.senderCompany);
 });
 
+test("name属性がcompany_nameのように複数キーワードにマッチしても後続フィールドで上書きしない", async ({ page }) => {
+  await page.setContent(`<html><body><form>
+    <input name="company_name" placeholder="会社名を入力" />
+  </form></body></html>`);
+
+  const { filledFields } = await fillForm(page, template);
+
+  expect(filledFields).toContain("senderCompany");
+  await expect(page.locator('input[name="company_name"]')).toHaveValue(template.senderCompany);
+});
+
 test("type=numberの入力欄でfillに失敗してもクラッシュさせずmissingFieldsにする", async ({ page }) => {
   await page.setContent(`<html><body><form>
     <div><div>電話番号<span>必須</span></div><input type="number" /></div>
