@@ -9,8 +9,8 @@ const baseTemplate: Template = {
   senderEmail: "kawakatsu.yuha@amateras2011.jp",
   senderPhone: "050-5879-7845",
   senderTitle: "事業推進部",
-  subject: "{{companyName}}様へ|ご案内",
-  message: "{{companyName}}様のプロダクトを拝見し、ご連絡しました。{{companyName}}様のご発展を願っております。",
+  subject: "{{companyName}}へ|ご案内",
+  message: "{{companyName}}のプロダクトを拝見し、ご連絡しました。{{companyName}}のご発展を願っております。",
 };
 
 test("renderTemplate: subjectとmessage内の{{companyName}}を企業名に置換する", () => {
@@ -25,7 +25,13 @@ test("renderTemplate: subjectとmessage内の{{companyName}}を企業名に置�
 test("renderTemplate: 企業名が空文字の場合は「貴社」に置換する", () => {
   const result = renderTemplate(baseTemplate, "");
 
-  expect(result.subject).toBe("貴社様へ|ご案内");
+  expect(result.subject).toBe("貴社へ|ご案内");
+});
+
+test("renderTemplate: 空白のみの企業名も「貴社」に置換する(様を二重に付けない)", () => {
+  const result = renderTemplate(baseTemplate, "   ");
+
+  expect(result.subject).toBe("貴社へ|ご案内");
 });
 
 test("renderTemplate: senderCompany等の他フィールドは変更しない", () => {

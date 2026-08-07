@@ -7,7 +7,8 @@ export async function loadTemplate(path: string): Promise<Template> {
 }
 
 export function renderTemplate(template: Template, companyName: string): Template {
-  const value = companyName.trim() || "貴社";
+  const trimmed = companyName.trim();
+  const value = trimmed ? `${trimmed}様` : "貴社";
   const replace = (text: string) => text.split("{{companyName}}").join(value);
   return { ...template, subject: replace(template.subject), message: replace(template.message) };
 }

@@ -6,7 +6,7 @@
 ## 構成
 
 - Googleスプレッドシート — 対象企業リスト・フォーム営業履歴・備考・商談状況のマスター
-- `data/templates/*.json` — 営業文面テンプレート(会社名・氏名・連絡先・件名・本文)
+- `data/templates/*.json` — 営業文面テンプレート(会社名・氏名・連絡先・件名・本文)。`subject`/`message`内の`{{companyName}}`は送信時に対象企業名(空なら「貴社」)へ置換される
 - `src/lib/targetSelection.ts` — スプレッドシートの内容から「今送るべき対象」を選ぶロジック
 - `src/lib/formDiscovery.ts` — 企業のトップページからお問い合わせフォームのURLを自動探索
 - `src/lib/formSubmitter.ts` — フォーム項目をラベル/name/placeholderのキーワードから推測して入力し、入力状況をバナー表示
