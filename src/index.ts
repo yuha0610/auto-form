@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createInterface } from "node:readline/promises";
 import { Command } from "commander";
 import { chromium, type Page } from "playwright";
-import { loadTemplate } from "./lib/templates.js";
+import { loadTemplate, renderTemplate } from "./lib/templates.js";
 import { injectFillBanner } from "./lib/formSubmitter.js";
 import { findContactFormUrl, extractMailto } from "./lib/formDiscovery.js";
 import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
@@ -160,8 +160,9 @@ program
             formUrl = discovered;
           }
 
+          const personalizedTemplate = renderTemplate(template, target.row.companyName);
           const { filledFields, missingFields, fieldCandidates, navigatedTo } =
-            await fillFormWithDiscovery(page, template);
+            await fillFormWithDiscovery(page, personalizedTemplate);
           await injectFillBanner(page, filledFields, missingFields);
           if (navigatedTo) formUrl = navigatedTo;
           if (missingFields.length > 0) {
