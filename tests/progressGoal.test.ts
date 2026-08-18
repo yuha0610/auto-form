@@ -8,6 +8,7 @@ import {
   countBusinessDaysInclusive,
   countSentThisWeek,
   countSentThisMonth,
+  countDealsWon,
 } from "../src/lib/progressGoal.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -233,4 +234,18 @@ test("countSentThisMonth: 2回目・3回目の送信日も今月ならカウン�
     }),
   ];
   expect(countSentThisMonth(rows, today)).toBe(2);
+});
+
+test("countDealsWon: 商談確定日が入っている行のみカウントする", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, dealStatus: "2026/07/21" }),
+    makeRow({ rowIndex: 3, dealStatus: "" }),
+    makeRow({ rowIndex: 4, dealStatus: "2026/08/01" }),
+  ];
+  expect(countDealsWon(rows)).toBe(2);
+});
+
+test("countDealsWon: 空白のみの値はカウントしない", () => {
+  const rows = [makeRow({ rowIndex: 2, dealStatus: "  " })];
+  expect(countDealsWon(rows)).toBe(0);
 });
