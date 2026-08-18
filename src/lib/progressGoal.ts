@@ -134,6 +134,10 @@ export function countSentThisMonth(rows: SheetRowData[], today: Date): number {
   );
 }
 
+export function countDealsWon(rows: SheetRowData[]): number {
+  return rows.filter((row) => row.dealStatus.trim() !== "").length;
+}
+
 export async function fetchGoal(
   client: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -157,7 +161,7 @@ export async function fetchGoal(
 export async function writeProgressCounts(
   client: sheets_v4.Sheets,
   spreadsheetId: string,
-  totalSent: number,
+  dealsWon: number,
   thisMonthSent: number,
   today: Date,
 ): Promise<void> {
@@ -167,8 +171,8 @@ export async function writeProgressCounts(
     requestBody: {
       valueInputOption: "USER_ENTERED",
       data: [
-        { range: "進捗!A3", values: [["累計送信数"]] },
-        { range: "進捗!B3", values: [[String(totalSent)]] },
+        { range: "進捗!A3", values: [["アポ獲得数"]] },
+        { range: "進捗!B3", values: [[String(dealsWon)]] },
         { range: "進捗!A4", values: [[monthLabel]] },
         { range: "進捗!B4", values: [[String(thisMonthSent)]] },
       ],

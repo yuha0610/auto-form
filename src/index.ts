@@ -20,6 +20,7 @@ import {
   getWeekStart,
   buildProgressMessage,
   countSentThisMonth,
+  countDealsWon,
   writeProgressCounts,
 } from "./lib/progressGoal.js";
 import { selectBatch, dedupeByCompanyName, summarizeSkipped } from "./lib/targetSelection.js";
@@ -292,7 +293,8 @@ program
           const thisWeekRemainingBusinessDays = countBusinessDaysInclusive(tomorrow, weekEnd);
 
           const thisMonthSent = countSentThisMonth(countRows, today);
-          await writeProgressCounts(sheetsClient, spreadsheetId, totalSent, thisMonthSent, today);
+          const dealsWon = countDealsWon(countRows);
+          await writeProgressCounts(sheetsClient, spreadsheetId, dealsWon, thisMonthSent, today);
 
           await notifySlackText(
             buildProgressMessage(
