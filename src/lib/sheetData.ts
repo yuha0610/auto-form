@@ -24,6 +24,19 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * 値が入っている最後の行の行番号(1始まり)を返す。1行も値がなければ0。
+ * Sheets APIの`values.append`は範囲の先頭セルが空だと「表が空」と誤判定して
+ * 先頭に行を挿入してしまうため、末尾追記では自前でこの行番号を求める。
+ */
+export function findLastNonEmptyRow(values: string[][]): number {
+  for (let i = values.length - 1; i >= 0; i--) {
+    const row = values[i] ?? [];
+    if (row.some((cell) => (cell ?? "").trim() !== "")) return i + 1;
+  }
+  return 0;
+}
+
 export function findColumnIndex(headerRow: string[], columnName: string): number {
   const target = normalizeWhitespace(columnName);
   const index = headerRow.findIndex((header) => normalizeWhitespace(header) === target);

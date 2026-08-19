@@ -4,8 +4,31 @@ import {
   columnIndexToLetter,
   appendNote,
   findColumnIndex,
+  findLastNonEmptyRow,
 } from "../src/lib/sheetData.js";
 import { COLUMNS } from "../src/types.js";
+
+test("findLastNonEmptyRow: 最後に値が入っている行の行番号(1始まり)を返す", () => {
+  expect(findLastNonEmptyRow([["ヘッダー"], ["A社"], ["B社"]])).toBe(3);
+});
+
+test("findLastNonEmptyRow: 末尾の空行は無視する", () => {
+  expect(findLastNonEmptyRow([["ヘッダー"], ["A社"], [], ["", ""]])).toBe(2);
+});
+
+test("findLastNonEmptyRow: 空白のみのセルは値なしとして扱う", () => {
+  expect(findLastNonEmptyRow([["ヘッダー"], ["A社"], ["   ", "\t"]])).toBe(2);
+});
+
+test("findLastNonEmptyRow: 1行も値がなければ0を返す", () => {
+  expect(findLastNonEmptyRow([])).toBe(0);
+  expect(findLastNonEmptyRow([[], [""]])).toBe(0);
+});
+
+test("findLastNonEmptyRow: A列が空でも他の列に値があればその行を数える", () => {
+  // ヘッダー行のA列が空でも「表が空」と誤判定しないことが、末尾追記の前提になる
+  expect(findLastNonEmptyRow([["", "企業名"], ["", "A社"]])).toBe(2);
+});
 
 test("columnIndexToLetter: 0はA, 25はZ, 26はAA", () => {
   expect(columnIndexToLetter(0)).toBe("A");

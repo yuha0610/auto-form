@@ -1,5 +1,5 @@
 import { google, type sheets_v4 } from "googleapis";
-import { columnIndexToLetter, findColumnIndex } from "./sheetData.js";
+import { columnIndexToLetter, findColumnIndex, findLastNonEmptyRow } from "./sheetData.js";
 import type { RawSheetData } from "./sheetData.js";
 
 export async function createSheetsClient(): Promise<sheets_v4.Sheets> {
@@ -117,11 +117,19 @@ export async function appendRows(
 ): Promise<void> {
   if (rows.length === 0) return;
 
-  await client.spreadsheets.values.append({
+  // `values.append`は範囲の先頭セルが空だと「表が空」と判定して先頭に行を挿入し、
+  // ヘッダー行ごと下にずらしてしまう(このシートはヘッダーのA列が空)。
+  // 最終行を自分で求めて、その次の行に直接書き込む。
+  const existing = await client.spreadsheets.values.get({
     spreadsheetId,
-    range: `${sheetName}!A1`,
+    range: `${sheetName}!A1:Z`,
+  });
+  const lastRow = findLastNonEmptyRow(existing.data.values ?? []);
+
+  await client.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${sheetName}!A${lastRow + 1}`,
     valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
     requestBody: { values: rows },
   });
 }
