@@ -5,8 +5,14 @@ export interface UrlCandidate {
   urls: string[];
 }
 
+export interface UrlPairing {
+  key: number;
+  /** 貼り付けられたURLそのもの。フォームURLとして保存する用途にも使える。 */
+  url: string;
+}
+
 export interface PastedUrlMatch {
-  matchedKeys: number[];
+  matches: UrlPairing[];
   /** どの候補にも紐付けられなかった入力。黙って捨てず呼び出し側に返す。 */
   unmatched: string[];
 }
@@ -37,7 +43,7 @@ function splitInput(input: string): string[] {
  * (確認中にサイト内を移動してURLが変わっていても同じ企業と判断できるようにするため)。
  */
 export function matchPastedUrls(input: string, candidates: UrlCandidate[]): PastedUrlMatch {
-  const matchedKeys: number[] = [];
+  const matches: UrlPairing[] = [];
   const unmatched: string[] = [];
 
   for (const pasted of splitInput(input)) {
@@ -59,10 +65,11 @@ export function matchPastedUrls(input: string, candidates: UrlCandidate[]): Past
       unmatched.push(pasted);
       continue;
     }
-    if (!matchedKeys.includes(matched.key)) {
-      matchedKeys.push(matched.key);
+    // 同じ企業に複数貼られた場合は最初のものを採用する
+    if (!matches.some((pairing) => pairing.key === matched.key)) {
+      matches.push({ key: matched.key, url: pasted });
     }
   }
 
-  return { matchedKeys, unmatched };
+  return { matches, unmatched };
 }

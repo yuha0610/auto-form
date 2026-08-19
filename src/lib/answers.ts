@@ -1,8 +1,7 @@
-const AFFIRMATIVE_ANSWERS = ["y", "yes", "はい"];
-
 /**
  * ターミナルでの入力を、全角/半角や大文字小文字の違いを吸収して正規化する。
- * 日本語入力が有効なままだと全角の「ｙ」が入り、半角の"y"と一致しない。
+ * 日本語入力が有効なままだと全角の「ｙ」「３」が入り、半角前提の比較や
+ * Number()が黙って失敗する(実際にこれで送信済み3社の記録が消えた)。
  */
 function normalizeAnswer(input: string): string {
   return input
@@ -11,7 +10,9 @@ function normalizeAnswer(input: string): string {
     .toLowerCase();
 }
 
-/** 「はい」と答えたと解釈できる入力かどうか。判断がつかない入力は否定として扱う。 */
-export function isAffirmative(input: string): boolean {
-  return AFFIRMATIVE_ANSWERS.includes(normalizeAnswer(input));
+/** 入力を0以上の整数として読む。読めない場合はnullを返す。 */
+export function parseAnswerNumber(input: string): number | null {
+  const normalized = normalizeAnswer(input);
+  if (!/^\d+$/.test(normalized)) return null;
+  return Number(normalized);
 }

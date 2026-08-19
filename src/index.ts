@@ -38,7 +38,7 @@ import {
 } from "./lib/sheetsClient.js";
 import { buildUpdates, type OutcomeUpdate } from "./lib/updates.js";
 import { matchPastedUrls } from "./lib/urlMatch.js";
-import { isAffirmative } from "./lib/answers.js";
+import { parseAnswerNumber } from "./lib/answers.js";
 import { partitionByRowIntegrity } from "./lib/rowIntegrity.js";
 import {
   savePendingWrites,
@@ -229,33 +229,70 @@ program
         `\n${opened.length}件のタブを開きました。確認・送信が終わったらEnterキーを押してください...`,
       );
 
-      const sendFailedIndexes = new Set<number>();
-      if (!isFormMissingRetry && opened.length > 0) {
+      // どちらのモードもURLを貼るだけで済むようにする(企業名を覚えておく必要をなくす)。
+      // 通常モードは「送信できなかった」方を、企業HPから手動で探すモードは
+      // 「送信できた」方を貼ってもらう(そちらが少数派なので入力が少ない)。
+      const pastedUrlByIndex = new Map<number, string>();
+      if (opened.length > 0) {
         console.log("\n開いた企業一覧:");
         opened.forEach((entry, i) =>
           console.log(`  ${i + 1}. ${entry.target.row.companyName}\n     ${entry.formUrl}`),
         );
         const answer = await rl.question(
-          "\n送信できなかった企業のURLを貼ってください(複数はカンマ/改行区切り、なければそのままEnter): ",
+          isFormMissingRetry
+            ? "\n送信できた企業のURLを貼ってください(そのままフォームURLとして保存します。複数はカンマ/改行区切り、なければEnter): "
+            : "\n送信できなかった企業のURLを貼ってください(複数はカンマ/改行区切り、なければそのままEnter): ",
         );
-        const { matchedKeys, unmatched } = matchPastedUrls(
+        const { matches, unmatched } = matchPastedUrls(
           answer,
           opened.map((entry, i) => ({
             key: i,
             urls: [entry.formUrl, entry.target.row.companyUrl].filter((url) => url),
           })),
         );
-        matchedKeys.forEach((key) => sendFailedIndexes.add(key));
-        if (unmatched.length > 0) {
-          console.warn(
-            `どの企業にも紐付けられなかったURLがあります(この分は記録しません): ${unmatched.join(", ")}`,
-          );
+        matches.forEach((pairing) => pastedUrlByIndex.set(pairing.key, pairing.url));
+
+        // 外部のフォームサービスを使っている企業だとドメインが違って紐付けられない。
+        // 黙って捨てると作業が無駄になるので、番号で対応先を聞く。
+        for (const url of unmatched) {
+          console.log(`\nこのURLがどの企業か判別できませんでした: ${url}`);
+          const which = await rl.question("  対応する企業の番号を入力してください(不要ならEnter): ");
+          const n = parseAnswerNumber(which);
+          if (n !== null && n >= 1 && n <= opened.length) {
+            pastedUrlByIndex.set(n - 1, url);
+            console.log(`  -> ${opened[n - 1].target.row.companyName} として記録します`);
+          } else {
+            console.log("  -> このURLは記録しません");
+          }
         }
       }
 
       let skippedInRetry = 0;
       for (const [index, entry] of opened.entries()) {
-        if (sendFailedIndexes.has(index)) {
+        const pastedUrl = pastedUrlByIndex.get(index);
+
+        // 企業HPから手動でフォームを探すモードでは、完了文言の有無で判定すると
+        // 「フォームが見つからず何も送っていない」場合まで送信済み扱い(uncertainでも
+        // 送信日が入る)になってしまう。貼られたURLだけを送信済みの根拠にする。
+        if (isFormMissingRetry) {
+          if (!pastedUrl) {
+            skippedInRetry++;
+            await entry.page.close().catch(() => {});
+            continue;
+          }
+          outcomeUpdates.push({
+            rowIndex: entry.target.row.rowIndex,
+            attemptNumber: entry.target.attemptNumber,
+            outcome: "success",
+            existingNote: entry.target.row.note,
+            formUrl: pastedUrl,
+          });
+          expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
+          await entry.page.close().catch(() => {});
+          continue;
+        }
+
+        if (pastedUrl) {
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
@@ -269,35 +306,6 @@ program
         }
 
         try {
-          // 企業HPを開いて手動でフォームを探すモードでは、完了文言の有無で判定すると
-          // 「フォームが見つからず何も送っていない」場合まで送信済み扱い(uncertainでも
-          // 送信日が入る)になってしまう。本人が画面を見ているので直接確認する。
-          if (isFormMissingRetry) {
-            const sent = await rl.question(
-              `[${entry.target.row.companyName}] 送信できましたか? (y = 送信した / それ以外 = していない): `,
-            );
-            if (!isAffirmative(sent)) {
-              console.log(
-                `  -> 未送信(入力: "${sent}")として、この企業には何も記録しません(次回also対象に残ります)`,
-              );
-              skippedInRetry++;
-              continue;
-            }
-
-            const answer = await rl.question(
-              `[${entry.target.row.companyName}] 見つけたフォームURLがあれば貼ってください(なければEnter): `,
-            );
-            outcomeUpdates.push({
-              rowIndex: entry.target.row.rowIndex,
-              attemptNumber: entry.target.attemptNumber,
-              outcome: "success",
-              existingNote: entry.target.row.note,
-              formUrl: answer.trim() || undefined,
-            });
-            expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
-            continue;
-          }
-
           const { outcome, failureReason } = await checkSubmissionOutcome(entry.page, entry.formUrl);
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,

@@ -1,43 +1,35 @@
 import { test, expect } from "@playwright/test";
-import { isAffirmative } from "../src/lib/answers.js";
+import { parseAnswerNumber } from "../src/lib/answers.js";
 
-test("isAffirmative: 半角のyを肯定として扱う", () => {
-  expect(isAffirmative("y")).toBe(true);
-  expect(isAffirmative("Y")).toBe(true);
+test("parseAnswerNumber: 半角数字を数値として読む", () => {
+  expect(parseAnswerNumber("3")).toBe(3);
+  expect(parseAnswerNumber("12")).toBe(12);
 });
 
-test("isAffirmative: 全角のｙも肯定として扱う(日本語IMEが有効なまま入力された場合)", () => {
-  // 実際にこれで入力が無視され、送信済みの3社が記録されなかった
-  expect(isAffirmative("ｙ")).toBe(true);
-  expect(isAffirmative("Ｙ")).toBe(true);
+test("parseAnswerNumber: 全角数字も読む(日本語IMEが有効なまま入力された場合)", () => {
+  // 全角の「ｙ」が弾かれて送信済み3社の記録が消えたのと同じ種類の失敗を防ぐ
+  expect(parseAnswerNumber("３")).toBe(3);
+  expect(parseAnswerNumber("１２")).toBe(12);
 });
 
-test("isAffirmative: yes / はい も肯定として扱う", () => {
-  expect(isAffirmative("yes")).toBe(true);
-  expect(isAffirmative("YES")).toBe(true);
-  expect(isAffirmative("ｙｅｓ")).toBe(true);
-  expect(isAffirmative("はい")).toBe(true);
+test("parseAnswerNumber: 前後の空白(全角スペース含む)を無視する", () => {
+  expect(parseAnswerNumber(" 3 ")).toBe(3);
+  expect(parseAnswerNumber("　3　")).toBe(3);
 });
 
-test("isAffirmative: 前後の空白(全角スペース含む)を無視する", () => {
-  expect(isAffirmative(" y ")).toBe(true);
-  expect(isAffirmative("　y　")).toBe(true);
+test("parseAnswerNumber: 空入力にはnullを返す", () => {
+  expect(parseAnswerNumber("")).toBeNull();
+  expect(parseAnswerNumber("   ")).toBeNull();
+  expect(parseAnswerNumber("　")).toBeNull();
 });
 
-test("isAffirmative: 空入力は否定として扱う", () => {
-  expect(isAffirmative("")).toBe(false);
-  expect(isAffirmative("   ")).toBe(false);
-  expect(isAffirmative("　")).toBe(false);
+test("parseAnswerNumber: 数値として読めない入力にはnullを返す", () => {
+  expect(parseAnswerNumber("abc")).toBeNull();
+  expect(parseAnswerNumber("3社")).toBeNull();
+  expect(parseAnswerNumber("いいえ")).toBeNull();
 });
 
-test("isAffirmative: n やその他の入力は否定として扱う", () => {
-  expect(isAffirmative("n")).toBe(false);
-  expect(isAffirmative("no")).toBe(false);
-  expect(isAffirmative("いいえ")).toBe(false);
-  expect(isAffirmative("あとで")).toBe(false);
-});
-
-test("isAffirmative: yを含むだけの文字列は肯定にしない(誤爆防止)", () => {
-  expect(isAffirmative("yay")).toBe(false);
-  expect(isAffirmative("y no")).toBe(false);
+test("parseAnswerNumber: 整数でない入力にはnullを返す", () => {
+  expect(parseAnswerNumber("3.5")).toBeNull();
+  expect(parseAnswerNumber("-2")).toBeNull();
 });
