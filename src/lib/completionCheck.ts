@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { buildBodyExcerpt } from "./uncertainLog.js";
 
 const SUCCESS_KEYWORDS = [
   "ありがとうございました",
@@ -27,6 +28,8 @@ async function hasCaptchaWidget(page: Page): Promise<boolean> {
 export interface SubmissionOutcome {
   outcome: "success" | "uncertain" | "failed";
   failureReason?: string;
+  /** uncertainのときのみ。判定に使ったページ本文の冒頭で、SUCCESS_KEYWORDS拡張の材料にする。 */
+  bodyExcerpt?: string;
 }
 
 export async function checkSubmissionOutcome(
@@ -37,7 +40,8 @@ export async function checkSubmissionOutcome(
     return { outcome: "success" };
   }
 
-  const bodyText = (await page.locator("body").innerText().catch(() => "")).toLowerCase();
+  const rawBodyText = await page.locator("body").innerText().catch(() => "");
+  const bodyText = rawBodyText.toLowerCase();
 
   const matched = SUCCESS_KEYWORDS.some((keyword) => bodyText.includes(keyword.toLowerCase()));
   if (matched) {
@@ -52,5 +56,5 @@ export async function checkSubmissionOutcome(
     return { outcome: "failed", failureReason: "CAPTCHA" };
   }
 
-  return { outcome: "uncertain" };
+  return { outcome: "uncertain", bodyExcerpt: buildBodyExcerpt(rawBodyText) };
 }

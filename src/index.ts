@@ -9,6 +9,7 @@ import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
 import { appendMissedFieldsLog } from "./lib/missedFieldsLog.js";
+import { appendUncertainLog } from "./lib/uncertainLog.js";
 import { notifyBatchReady } from "./lib/notify.js";
 import { countSentToday, notifySlackDailyCount, notifySlackText } from "./lib/slackNotify.js";
 import {
@@ -49,6 +50,7 @@ import type { EligibleTarget } from "./types.js";
 
 const PENDING_WRITES_DIR = "data/pending-writes";
 const MISSED_FIELDS_LOG_PATH = "data/missed-fields-log.jsonl";
+const UNCERTAIN_LOG_PATH = "data/uncertain-outcomes-log.jsonl";
 
 const program = new Command();
 
@@ -306,7 +308,22 @@ program
         }
 
         try {
-          const { outcome, failureReason } = await checkSubmissionOutcome(entry.page, entry.formUrl);
+          const { outcome, failureReason, bodyExcerpt } = await checkSubmissionOutcome(
+            entry.page,
+            entry.formUrl,
+          );
+          if (outcome === "uncertain" && bodyExcerpt !== undefined) {
+            try {
+              await appendUncertainLog(UNCERTAIN_LOG_PATH, {
+                timestamp: new Date().toISOString(),
+                companyName: entry.target.row.companyName,
+                url: entry.page.url(),
+                bodyExcerpt,
+              });
+            } catch (error) {
+              console.warn(`uncertain-outcomes-logの書き込みに失敗しました: ${String(error)}`);
+            }
+          }
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,

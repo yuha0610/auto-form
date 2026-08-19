@@ -38,7 +38,8 @@ test("URLも同じで完了文言もなければuncertain", async ({ page }) => 
   await page.goto("https://example.test/contact");
 
   const result = await checkSubmissionOutcome(page, "https://example.test/contact");
-  expect(result).toEqual({ outcome: "uncertain" });
+  // 入力欄だけのページは本文テキストが無いので抜粋は空になる
+  expect(result).toEqual({ outcome: "uncertain", bodyExcerpt: "" });
 });
 
 test("CAPTCHAの検証に失敗しましたと表示されていればfailed(CAPTCHA)", async ({ page }) => {
@@ -77,7 +78,7 @@ test("captchaという語を含まない認証エラーは誤検知しない", a
   await page.goto("https://example.test/contact");
 
   const result = await checkSubmissionOutcome(page, "https://example.test/contact");
-  expect(result).toEqual({ outcome: "uncertain" });
+  expect(result).toEqual({ outcome: "uncertain", bodyExcerpt: "認証に失敗しました" });
 });
 
 test("reCAPTCHAのiframeが残っていれば失敗文言がなくてもfailed(CAPTCHA)", async ({ page }) => {
@@ -154,4 +155,32 @@ test("reCAPTCHAのscriptタグのみでも(iframe未描画でも)failed(CAPTCHA)
 
   const result = await checkSubmissionOutcome(page, "https://example.test/contact");
   expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
+});
+
+test("uncertainのときは判定に使った本文の冒頭をbodyExcerptとして返す", async ({ page }) => {
+  // SUCCESS_KEYWORDS を実データに基づいて拡張するための材料にする
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: "<html><head><meta charset='utf-8'></head><body>お問い合わせを承りました</body></html>",
+    }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result.outcome).toBe("uncertain");
+  expect(result.bodyExcerpt).toBe("お問い合わせを承りました");
+});
+
+test("successのときはbodyExcerptを返さない(材料として不要なため)", async ({ page }) => {
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: "<html><head><meta charset='utf-8'></head><body>送信が完了しました</body></html>",
+    }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result).toEqual({ outcome: "success" });
 });
