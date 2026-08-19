@@ -29,16 +29,11 @@ export interface SubmissionOutcome {
   failureReason?: string;
 }
 
-export interface CheckSubmissionOutcomeOptions {
-  requireSuccessKeyword?: boolean;
-}
-
 export async function checkSubmissionOutcome(
   page: Page,
   originalUrl: string,
-  options?: CheckSubmissionOutcomeOptions,
 ): Promise<SubmissionOutcome> {
-  if (!options?.requireSuccessKeyword && page.url() !== originalUrl) {
+  if (page.url() !== originalUrl) {
     return { outcome: "success" };
   }
 

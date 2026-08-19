@@ -228,7 +228,7 @@ program
       );
 
       const ngIndexes = new Set<number>();
-      if (!isFormMissingRetry && opened.length > 0) {
+      if (opened.length > 0) {
         console.log("\n開いた企業一覧:");
         opened.forEach((entry, i) => console.log(`  [${i + 1}] ${entry.target.row.companyName}`));
         const ngAnswer = await rl.question(
@@ -240,6 +240,7 @@ program
         }
       }
 
+      let skippedInRetry = 0;
       for (const [index, entry] of opened.entries()) {
         if (ngIndexes.has(index + 1)) {
           outcomeUpdates.push({
@@ -255,26 +256,40 @@ program
         }
 
         try {
-          const { outcome, failureReason } = await checkSubmissionOutcome(
-            entry.page,
-            entry.formUrl,
-            isFormMissingRetry ? { requireSuccessKeyword: true } : undefined,
-          );
+          // 企業HPを開いて手動でフォームを探すモードでは、完了文言の有無で判定すると
+          // 「フォームが見つからず何も送っていない」場合まで送信済み扱い(uncertainでも
+          // 送信日が入る)になってしまう。本人が画面を見ているので直接確認する。
+          if (isFormMissingRetry) {
+            const sent = await rl.question(
+              `[${entry.target.row.companyName}] 送信できましたか? (y = 送信した / それ以外 = していない): `,
+            );
+            if (sent.trim().toLowerCase() !== "y") {
+              console.log("  -> 未送信として、この企業には何も記録しません(次回also対象に残ります)");
+              skippedInRetry++;
+              continue;
+            }
 
-          let discoveredUrl = entry.discoveredUrl;
-          if (isFormMissingRetry && outcome === "success") {
             const answer = await rl.question(
               `[${entry.target.row.companyName}] 見つけたフォームURLがあれば貼ってください(なければEnter): `,
             );
-            if (answer.trim()) discoveredUrl = answer.trim();
+            outcomeUpdates.push({
+              rowIndex: entry.target.row.rowIndex,
+              attemptNumber: entry.target.attemptNumber,
+              outcome: "success",
+              existingNote: entry.target.row.note,
+              formUrl: answer.trim() || undefined,
+            });
+            expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
+            continue;
           }
 
+          const { outcome, failureReason } = await checkSubmissionOutcome(entry.page, entry.formUrl);
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome,
             existingNote: entry.target.row.note,
-            formUrl: discoveredUrl,
+            formUrl: entry.discoveredUrl,
             failureReason,
           });
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
@@ -294,6 +309,10 @@ program
       }
 
       rl.close();
+
+      if (skippedInRetry > 0) {
+        console.log(`\n未送信のため記録しなかった企業: ${skippedInRetry}件`);
+      }
 
       const freshRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
       const freshRows = parseSheetRows(freshRaw);

@@ -137,41 +137,6 @@ test("Cloudflare Turnstileのiframeが残っていれば失敗文言がなくて
   expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
 });
 
-test("requireSuccessKeyword指定時: URLが変わっただけでは成功にしない(完了文言がなければuncertain)", async ({ page }) => {
-  await page.route("https://example.test/contact", (route) =>
-    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><head><meta charset='utf-8'></head><body>form</body></html>" }),
-  );
-  await page.route("https://example.test/about", (route) =>
-    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><head><meta charset='utf-8'></head><body>会社概要ページです</body></html>" }),
-  );
-  await page.goto("https://example.test/contact");
-  await page.goto("https://example.test/about");
-
-  const result = await checkSubmissionOutcome(page, "https://example.test/contact", {
-    requireSuccessKeyword: true,
-  });
-  expect(result).toEqual({ outcome: "uncertain" });
-});
-
-test("requireSuccessKeyword指定時: URLが変わり完了文言もあればsuccess", async ({ page }) => {
-  await page.route("https://example.test/contact", (route) =>
-    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><head><meta charset='utf-8'></head><body>form</body></html>" }),
-  );
-  await page.route("https://example.test/thanks", (route) =>
-    route.fulfill({
-      contentType: "text/html; charset=utf-8",
-      body: "<html><head><meta charset='utf-8'></head><body>送信が完了しました。ありがとうございました。</body></html>",
-    }),
-  );
-  await page.goto("https://example.test/contact");
-  await page.goto("https://example.test/thanks");
-
-  const result = await checkSubmissionOutcome(page, "https://example.test/contact", {
-    requireSuccessKeyword: true,
-  });
-  expect(result).toEqual({ outcome: "success" });
-});
-
 test("reCAPTCHAのscriptタグのみでも(iframe未描画でも)failed(CAPTCHA)", async ({ page }) => {
   await page.route("https://example.test/contact", (route) =>
     route.fulfill({
