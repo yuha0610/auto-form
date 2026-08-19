@@ -8,6 +8,7 @@ import {
   selectBatch,
   dedupeByCompanyName,
   summarizeSkipped,
+  selectFormMissingRetryTargets,
 } from "../src/lib/targetSelection.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -225,4 +226,28 @@ test("selectBatch: 検知シグナルがある対象を先頭に並べ替える"
   const today = new Date(2026, 6, 15); // Bの検知日から5日後(14日以内)
   const batch = selectBatch(rows, 3, today);
   expect(batch.map((t) => t.row.companyName)).toEqual(["B", "A", "C"]);
+});
+
+test("selectFormMissingRetryTargets: 備考に「フォーム無」を含む行だけを対象にする", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社", note: "フォーム無(要確認)" }),
+    makeRow({ rowIndex: 3, companyName: "B社", note: "URL不正(名前解決失敗)" }),
+    makeRow({ rowIndex: 4, companyName: "C社", note: "" }),
+  ];
+  const today = new Date(2026, 6, 12);
+  const targets = selectFormMissingRetryTargets(rows, today);
+  expect(targets.map((t) => t.row.companyName)).toEqual(["A社"]);
+});
+
+test("selectFormMissingRetryTargets: 商談確定日が入っていれば対象外", () => {
+  const rows = [makeRow({ note: "フォーム無", dealStatus: "2026/07/01" })];
+  expect(selectFormMissingRetryTargets(rows, new Date(2026, 6, 12))).toEqual([]);
+});
+
+test("selectFormMissingRetryTargets: 通常はisSkippedで除外される行でもattemptNumberを計算して対象に含む", () => {
+  const row = makeRow({ note: "フォーム無", firstSentAt: "2026/07/01" });
+  const today = new Date(2026, 6, 15); // 1回目から14日後 → 2回目が対象
+  const targets = selectFormMissingRetryTargets([row], today);
+  expect(targets).toHaveLength(1);
+  expect(targets[0].attemptNumber).toBe(2);
 });

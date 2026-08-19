@@ -23,7 +23,12 @@ import {
   countDealsWon,
   writeProgressCounts,
 } from "./lib/progressGoal.js";
-import { selectBatch, dedupeByCompanyName, summarizeSkipped } from "./lib/targetSelection.js";
+import {
+  selectBatch,
+  selectFormMissingRetryTargets,
+  dedupeByCompanyName,
+  summarizeSkipped,
+} from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
 import {
   createSheetsClient,
@@ -51,6 +56,10 @@ program
   .option("-m, --template <path>", "文面テンプレートJSON", "data/templates/default.json")
   .option("-b, --batch-size <n>", "1回のバッチで開くタブ数", "20")
   .option("--skip-report", "スキップ理由ごとに件数・企業名を集計して表示する(送信は行わない)")
+  .option(
+    "--retry-form-missing",
+    "備考が「フォーム無」の企業の企業HPを開き、手動でフォームを探して送信する",
+  )
   .action(async (opts) => {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
     if (!spreadsheetId) {
@@ -101,9 +110,16 @@ program
       );
     }
 
-    const candidates = selectBatch(dedupedRows, dedupedRows.length, new Date());
+    const isFormMissingRetry = Boolean(opts.retryFormMissing);
+    const candidates = isFormMissingRetry
+      ? selectFormMissingRetryTargets(dedupedRows, new Date())
+      : selectBatch(dedupedRows, dedupedRows.length, new Date());
     if (candidates.length === 0) {
-      console.log("送信対象の企業がありません。");
+      console.log(
+        isFormMissingRetry
+          ? "「フォーム無」の企業がありません。"
+          : "送信対象の企業がありません。",
+      );
       return;
     }
 
@@ -123,6 +139,12 @@ program
         let formUrl = target.row.formUrl;
 
         try {
+          if (isFormMissingRetry) {
+            await gotoWithRetry(page, target.row.companyUrl, { waitUntil: "domcontentloaded" });
+            opened.push({ target, page, formUrl: target.row.companyUrl });
+            continue;
+          }
+
           if (formUrl) {
             await gotoWithRetry(page, formUrl, { waitUntil: "domcontentloaded" });
           } else {
@@ -208,7 +230,11 @@ program
 
       for (const entry of opened) {
         try {
-          const { outcome, failureReason } = await checkSubmissionOutcome(entry.page, entry.formUrl);
+          const { outcome, failureReason } = await checkSubmissionOutcome(
+            entry.page,
+            entry.formUrl,
+            isFormMissingRetry ? { requireSuccessKeyword: true } : undefined,
+          );
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,

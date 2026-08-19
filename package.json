@@ -9,6 +9,7 @@
     "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "retry:form-missing": "tsx src/index.ts --retry-form-missing",
     "test": "playwright test",
     "playwright:install": "playwright install chromium",
     "typecheck": "tsc -p tsconfig.check.json",

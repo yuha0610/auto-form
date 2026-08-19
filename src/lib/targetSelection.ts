@@ -66,9 +66,8 @@ export function summarizeSkipped(rows: SheetRowData[]): SkipSummary[] {
   }));
 }
 
-export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | null {
+function computeAttemptNumber(row: SheetRowData, today: Date): AttemptNumber | null {
   if (row.dealStatus.trim() !== "") return null;
-  if (isSkipped(row)) return null;
 
   if (!row.firstSentAt) return 1;
   if (row.thirdSentAt) return null;
@@ -82,6 +81,29 @@ export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | 
   const second = parseSheetDate(row.secondSentAt);
   if (!second) return null;
   return daysBetween(second, today) >= FOLLOW_UP_INTERVAL_DAYS ? 3 : null;
+}
+
+export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | null {
+  if (isSkipped(row)) return null;
+  return computeAttemptNumber(row, today);
+}
+
+const FORM_MISSING_MARKER = "フォーム無";
+
+/** 自動発見でフォームが見つからず(備考に「フォーム無」が付いて)スキップされている行を、手動確認用に再度対象にする。 */
+export function selectFormMissingRetryTargets(
+  rows: SheetRowData[],
+  today: Date,
+): EligibleTarget[] {
+  const targets: EligibleTarget[] = [];
+  for (const row of rows) {
+    if (!row.note.includes(FORM_MISSING_MARKER)) continue;
+    const attemptNumber = computeAttemptNumber(row, today);
+    if (attemptNumber !== null) {
+      targets.push({ row, attemptNumber });
+    }
+  }
+  return targets;
 }
 
 export function hasRecentSignal(row: SheetRowData, today: Date): boolean {
