@@ -37,6 +37,7 @@ import {
   writeCells,
 } from "./lib/sheetsClient.js";
 import { buildUpdates, type OutcomeUpdate } from "./lib/updates.js";
+import { matchPastedUrls } from "./lib/urlMatch.js";
 import { partitionByRowIntegrity } from "./lib/rowIntegrity.js";
 import {
   savePendingWrites,
@@ -227,28 +228,39 @@ program
         `\n${opened.length}件のタブを開きました。確認・送信が終わったらEnterキーを押してください...`,
       );
 
-      const ngIndexes = new Set<number>();
-      if (opened.length > 0) {
+      const sendFailedIndexes = new Set<number>();
+      if (!isFormMissingRetry && opened.length > 0) {
         console.log("\n開いた企業一覧:");
-        opened.forEach((entry, i) => console.log(`  [${i + 1}] ${entry.target.row.companyName}`));
-        const ngAnswer = await rl.question(
-          "営業NG(セールスお断り)だった企業番号があればカンマ区切りで入力してください(なければそのままEnter): ",
+        opened.forEach((entry, i) =>
+          console.log(`  ${i + 1}. ${entry.target.row.companyName}\n     ${entry.formUrl}`),
         );
-        for (const part of ngAnswer.split(",")) {
-          const n = Number(part.trim());
-          if (Number.isInteger(n) && n >= 1 && n <= opened.length) ngIndexes.add(n);
+        const answer = await rl.question(
+          "\n送信できなかった企業のURLを貼ってください(複数はカンマ/改行区切り、なければそのままEnter): ",
+        );
+        const { matchedKeys, unmatched } = matchPastedUrls(
+          answer,
+          opened.map((entry, i) => ({
+            key: i,
+            urls: [entry.formUrl, entry.target.row.companyUrl].filter((url) => url),
+          })),
+        );
+        matchedKeys.forEach((key) => sendFailedIndexes.add(key));
+        if (unmatched.length > 0) {
+          console.warn(
+            `どの企業にも紐付けられなかったURLがあります(この分は記録しません): ${unmatched.join(", ")}`,
+          );
         }
       }
 
       let skippedInRetry = 0;
       for (const [index, entry] of opened.entries()) {
-        if (ngIndexes.has(index + 1)) {
+        if (sendFailedIndexes.has(index)) {
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome: "failed",
             existingNote: entry.target.row.note,
-            failureReason: "営業・セールスお断り",
+            failureReason: "送信失敗",
           });
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
           await entry.page.close().catch(() => {});
