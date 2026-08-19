@@ -38,6 +38,7 @@ import {
 } from "./lib/sheetsClient.js";
 import { buildUpdates, type OutcomeUpdate } from "./lib/updates.js";
 import { matchPastedUrls } from "./lib/urlMatch.js";
+import { isAffirmative } from "./lib/answers.js";
 import { partitionByRowIntegrity } from "./lib/rowIntegrity.js";
 import {
   savePendingWrites,
@@ -275,8 +276,10 @@ program
             const sent = await rl.question(
               `[${entry.target.row.companyName}] 送信できましたか? (y = 送信した / それ以外 = していない): `,
             );
-            if (sent.trim().toLowerCase() !== "y") {
-              console.log("  -> 未送信として、この企業には何も記録しません(次回also対象に残ります)");
+            if (!isAffirmative(sent)) {
+              console.log(
+                `  -> 未送信(入力: "${sent}")として、この企業には何も記録しません(次回also対象に残ります)`,
+              );
               skippedInRetry++;
               continue;
             }
