@@ -59,6 +59,10 @@ test("isSkipped: 備考にCAPTCHAが含まれていればtrue", () => {
   expect(isSkipped(makeRow({ note: "CAPTCHA" }))).toBe(true);
 });
 
+test("isSkipped: 備考に「営業・セールスお断り」が含まれていればtrue", () => {
+  expect(isSkipped(makeRow({ note: "営業・セールスお断り" }))).toBe(true);
+});
+
 test("isSkipped: メールアドレス列に値があればtrue", () => {
   expect(isSkipped(makeRow({ email: "info@example.com" }))).toBe(true);
 });

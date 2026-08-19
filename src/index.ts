@@ -226,21 +226,55 @@ program
       await rl.question(
         `\n${opened.length}件のタブを開きました。確認・送信が終わったらEnterキーを押してください...`,
       );
-      rl.close();
 
-      for (const entry of opened) {
+      const ngIndexes = new Set<number>();
+      if (!isFormMissingRetry && opened.length > 0) {
+        console.log("\n開いた企業一覧:");
+        opened.forEach((entry, i) => console.log(`  [${i + 1}] ${entry.target.row.companyName}`));
+        const ngAnswer = await rl.question(
+          "営業NG(セールスお断り)だった企業番号があればカンマ区切りで入力してください(なければそのままEnter): ",
+        );
+        for (const part of ngAnswer.split(",")) {
+          const n = Number(part.trim());
+          if (Number.isInteger(n) && n >= 1 && n <= opened.length) ngIndexes.add(n);
+        }
+      }
+
+      for (const [index, entry] of opened.entries()) {
+        if (ngIndexes.has(index + 1)) {
+          outcomeUpdates.push({
+            rowIndex: entry.target.row.rowIndex,
+            attemptNumber: entry.target.attemptNumber,
+            outcome: "failed",
+            existingNote: entry.target.row.note,
+            failureReason: "営業・セールスお断り",
+          });
+          expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
+          await entry.page.close().catch(() => {});
+          continue;
+        }
+
         try {
           const { outcome, failureReason } = await checkSubmissionOutcome(
             entry.page,
             entry.formUrl,
             isFormMissingRetry ? { requireSuccessKeyword: true } : undefined,
           );
+
+          let discoveredUrl = entry.discoveredUrl;
+          if (isFormMissingRetry && outcome === "success") {
+            const answer = await rl.question(
+              `[${entry.target.row.companyName}] 見つけたフォームURLがあれば貼ってください(なければEnter): `,
+            );
+            if (answer.trim()) discoveredUrl = answer.trim();
+          }
+
           outcomeUpdates.push({
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome,
             existingNote: entry.target.row.note,
-            formUrl: entry.discoveredUrl,
+            formUrl: discoveredUrl,
             failureReason,
           });
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
@@ -258,6 +292,8 @@ program
           await entry.page.close().catch(() => {});
         }
       }
+
+      rl.close();
 
       const freshRaw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
       const freshRows = parseSheetRows(freshRaw);
