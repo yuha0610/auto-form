@@ -210,9 +210,15 @@ test("hasRecentSignal: 検知日が14日以内ならtrue", () => {
   expect(hasRecentSignal(row, today)).toBe(true);
 });
 
-test("hasRecentSignal: 検知日が14日を超えていればfalse", () => {
+test("hasRecentSignal: 検知日が30日ちょうどならtrue(境界を含む)", () => {
   const row = makeRow({ signalDate: "2026/07/01" });
-  const today = new Date(2026, 6, 16); // 15日後
+  const today = new Date(2026, 6, 31); // 30日後
+  expect(hasRecentSignal(row, today)).toBe(true);
+});
+
+test("hasRecentSignal: 検知日が30日を超えていればfalse", () => {
+  const row = makeRow({ signalDate: "2026/07/01" });
+  const today = new Date(2026, 7, 1); // 31日後
   expect(hasRecentSignal(row, today)).toBe(false);
 });
 
@@ -221,15 +227,65 @@ test("hasRecentSignal: 検知日が無ければfalse", () => {
   expect(hasRecentSignal(row, new Date(2026, 6, 15))).toBe(false);
 });
 
+test("シグナルの有効期間を延ばしてもフォローアップ間隔は14日のまま", () => {
+  // 同じ定数を使い回すと、シグナルの窓を広げた途端に2回目送信が30日後になってしまう
+  const row = makeRow({ firstSentAt: "2026/07/01" });
+  expect(getNextAttempt(row, new Date(2026, 6, 14))).toBeNull(); // 13日後は早すぎる
+  expect(getNextAttempt(row, new Date(2026, 6, 15))).toBe(2); // 14日後で2回目が対象
+});
+
 test("selectBatch: 検知シグナルがある対象を先頭に並べ替える", () => {
   const rows = [
     makeRow({ rowIndex: 2, companyName: "A" }),
     makeRow({ rowIndex: 3, companyName: "B", signalDate: "2026/07/10" }),
     makeRow({ rowIndex: 4, companyName: "C" }),
   ];
-  const today = new Date(2026, 6, 15); // Bの検知日から5日後(14日以内)
+  const today = new Date(2026, 6, 15); // Bの検知日から5日後
   const batch = selectBatch(rows, 3, today);
   expect(batch.map((t) => t.row.companyName)).toEqual(["B", "A", "C"]);
+});
+
+test("selectBatch: シグナルがある対象同士は検知日が新しい順に並ぶ", () => {
+  // シート順と検知日の新しい順がちょうど逆になるように並べる。
+  // (シート順のままでも偶然一致してしまう並びだと、並び替えを検証できない)
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "古い", signalDate: "2026/07/01" }),
+    makeRow({ rowIndex: 3, companyName: "中間", signalDate: "2026/07/10" }),
+    makeRow({ rowIndex: 4, companyName: "新しい", signalDate: "2026/07/20" }),
+  ];
+  const today = new Date(2026, 6, 21); // 3件とも30日以内に収まる
+  const batch = selectBatch(rows, 3, today);
+  expect(batch.map((t) => t.row.companyName)).toEqual(["新しい", "中間", "古い"]);
+});
+
+test("selectBatch: シグナルなしの対象同士はシートの並び順を保つ", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A" }),
+    makeRow({ rowIndex: 3, companyName: "B" }),
+    makeRow({ rowIndex: 4, companyName: "C" }),
+  ];
+  const batch = selectBatch(rows, 3, new Date(2026, 6, 21));
+  expect(batch.map((t) => t.row.companyName)).toEqual(["A", "B", "C"]);
+});
+
+test("selectBatch: 検知日が同じシグナル同士はシートの並び順を保つ", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "先", signalDate: "2026/07/10" }),
+    makeRow({ rowIndex: 3, companyName: "後", signalDate: "2026/07/10" }),
+  ];
+  const batch = selectBatch(rows, 2, new Date(2026, 6, 15));
+  expect(batch.map((t) => t.row.companyName)).toEqual(["先", "後"]);
+});
+
+test("selectBatch: 30日以内のシグナルは優先されるが、超えたものは通常扱いになる", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "シグナルなし" }),
+    makeRow({ rowIndex: 3, companyName: "期限切れ", signalDate: "2026/06/01" }),
+    makeRow({ rowIndex: 4, companyName: "25日前", signalDate: "2026/06/26" }),
+  ];
+  const today = new Date(2026, 6, 21); // 6/26から25日後 / 6/1から50日後
+  const batch = selectBatch(rows, 3, today);
+  expect(batch.map((t) => t.row.companyName)).toEqual(["25日前", "シグナルなし", "期限切れ"]);
 });
 
 test("selectFormMissingRetryTargets: 備考に「フォーム無」を含む行だけを対象にする", () => {

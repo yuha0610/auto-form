@@ -13,6 +13,13 @@ const SKIP_MARKERS = [
 
 const FOLLOW_UP_INTERVAL_DAYS = 14;
 
+/**
+ * 検知シグナルを「直近の動き」として優先する期間。
+ * フォローアップ間隔(14日)とは別物なので定数を分けている
+ * (同じ定数を使い回すと、この期間を延ばした途端に2回目送信の間隔まで延びてしまう)。
+ */
+const SIGNAL_RECENCY_DAYS = 30;
+
 export function parseSheetDate(value: string | null): Date | null {
   if (!value) return null;
   const parts = value.split("/").map(Number);
@@ -110,7 +117,7 @@ export function selectFormMissingRetryTargets(
 export function hasRecentSignal(row: SheetRowData, today: Date): boolean {
   const signalDate = parseSheetDate(row.signalDate);
   if (!signalDate) return false;
-  return daysBetween(signalDate, today) <= FOLLOW_UP_INTERVAL_DAYS;
+  return daysBetween(signalDate, today) <= SIGNAL_RECENCY_DAYS;
 }
 
 function normalizeCompanyName(name: string): string {
@@ -156,10 +163,17 @@ export function selectBatch(
     }
   }
 
+  // シグナルがある対象を先に、その中では検知日が新しい順に。
+  // それ以外は比較結果を0にして、安定ソートによりシートの並び順を保つ。
   const sorted = [...eligible].sort((a, b) => {
-    const aHot = hasRecentSignal(a.row, today) ? 0 : 1;
-    const bHot = hasRecentSignal(b.row, today) ? 0 : 1;
-    return aHot - bHot;
+    const aHot = hasRecentSignal(a.row, today);
+    const bHot = hasRecentSignal(b.row, today);
+    if (aHot !== bHot) return aHot ? -1 : 1;
+    if (!aHot) return 0;
+
+    const aDate = parseSheetDate(a.row.signalDate)?.getTime() ?? 0;
+    const bDate = parseSheetDate(b.row.signalDate)?.getTime() ?? 0;
+    return bDate - aDate;
   });
 
   return sorted.slice(0, batchSize);
