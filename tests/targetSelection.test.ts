@@ -63,6 +63,11 @@ test("isSkipped: 備考に「営業・セールスお断り」が含まれてい
   expect(isSkipped(makeRow({ note: "営業・セールスお断り" }))).toBe(true);
 });
 
+test("isSkipped: 備考に「送信NG」が含まれていればtrue", () => {
+  expect(isSkipped(makeRow({ note: "送信NG" }))).toBe(true);
+  expect(isSkipped(makeRow({ note: "要確認 / 送信NG" }))).toBe(true);
+});
+
 test("isSkipped: メールアドレス列に値があればtrue", () => {
   expect(isSkipped(makeRow({ email: "info@example.com" }))).toBe(true);
 });
@@ -302,6 +307,15 @@ test("selectFormMissingRetryTargets: 備考に「フォーム無」を含む行�
 test("selectFormMissingRetryTargets: 商談確定日が入っていれば対象外", () => {
   const rows = [makeRow({ note: "フォーム無", dealStatus: "2026/07/01" })];
   expect(selectFormMissingRetryTargets(rows, new Date(2026, 6, 12))).toEqual([]);
+});
+
+test("selectFormMissingRetryTargets: 備考に「送信NG」がある行は対象から外す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A", note: "フォーム無" }),
+    makeRow({ rowIndex: 3, companyName: "B", note: "フォーム無(要確認) / 送信NG" }),
+  ];
+  const targets = selectFormMissingRetryTargets(rows, new Date(2026, 0, 1));
+  expect(targets.map((t) => t.row.companyName)).toEqual(["A"]);
 });
 
 test("selectFormMissingRetryTargets: シグナルがある企業を先頭に、検知日の新しい順に並べる", () => {

@@ -1,5 +1,8 @@
 import type { AttemptNumber, EligibleTarget, SheetRowData } from "../types.js";
 
+/** 送り先として登録しない企業の印。フォーム無の再挑戦モードでも対象から外す。 */
+const NEVER_SEND_MARKER = "送信NG";
+
 const SKIP_MARKERS = [
   "フォーム無",
   "Google Formで不可",
@@ -9,6 +12,7 @@ const SKIP_MARKERS = [
   "メール",
   "CAPTCHA",
   "営業・セールスお断り",
+  NEVER_SEND_MARKER,
 ];
 
 const FOLLOW_UP_INTERVAL_DAYS = 14;
@@ -123,6 +127,7 @@ export function selectFormMissingRetryTargets(
   const targets: EligibleTarget[] = [];
   for (const row of rows) {
     if (!row.note.includes(FORM_MISSING_MARKER)) continue;
+    if (row.note.includes(NEVER_SEND_MARKER)) continue;
     const attemptNumber = computeAttemptNumber(row, today);
     if (attemptNumber !== null) {
       targets.push({ row, attemptNumber });
