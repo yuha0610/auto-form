@@ -79,3 +79,79 @@ test("captchaという語を含まない認証エラーは誤検知しない", a
   const result = await checkSubmissionOutcome(page, "https://example.test/contact");
   expect(result).toEqual({ outcome: "uncertain" });
 });
+
+test("reCAPTCHAのiframeが残っていれば失敗文言がなくてもfailed(CAPTCHA)", async ({ page }) => {
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body:
+        "<html><head><meta charset='utf-8'></head><body><form><input name=\"name\">" +
+        '<iframe src="https://www.google.com/recaptcha/api2/anchor?k=test" title="reCAPTCHA"></iframe>' +
+        "</form></body></html>",
+    }),
+  );
+  await page.route("https://www.google.com/recaptcha/**", (route) =>
+    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><body></body></html>" }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
+});
+
+test("hCaptchaのiframeが残っていれば失敗文言がなくてもfailed(CAPTCHA)", async ({ page }) => {
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body:
+        "<html><head><meta charset='utf-8'></head><body><form><input name=\"name\">" +
+        '<iframe src="https://newassets.hcaptcha.com/captcha/v1/xxx/static/hcaptcha.html" title="hCaptcha"></iframe>' +
+        "</form></body></html>",
+    }),
+  );
+  await page.route("https://newassets.hcaptcha.com/**", (route) =>
+    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><body></body></html>" }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
+});
+
+test("Cloudflare Turnstileのiframeが残っていれば失敗文言がなくてもfailed(CAPTCHA)", async ({ page }) => {
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body:
+        "<html><head><meta charset='utf-8'></head><body><form><input name=\"name\">" +
+        '<iframe src="https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/if/ov2" title="Turnstile"></iframe>' +
+        "</form></body></html>",
+    }),
+  );
+  await page.route("https://challenges.cloudflare.com/**", (route) =>
+    route.fulfill({ contentType: "text/html; charset=utf-8", body: "<html><body></body></html>" }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
+});
+
+test("reCAPTCHAのscriptタグのみでも(iframe未描画でも)failed(CAPTCHA)", async ({ page }) => {
+  await page.route("https://example.test/contact", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body:
+        "<html><head><meta charset='utf-8'>" +
+        '<script src="https://www.google.com/recaptcha/api.js"></script>' +
+        "</head><body><form><input name=\"name\"></form></body></html>",
+    }),
+  );
+  await page.route("https://www.google.com/recaptcha/**", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: "" }),
+  );
+  await page.goto("https://example.test/contact");
+
+  const result = await checkSubmissionOutcome(page, "https://example.test/contact");
+  expect(result).toEqual({ outcome: "failed", failureReason: "CAPTCHA" });
+});
