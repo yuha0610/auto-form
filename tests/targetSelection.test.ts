@@ -304,6 +304,30 @@ test("selectFormMissingRetryTargets: 商談確定日が入っていれば対象�
   expect(selectFormMissingRetryTargets(rows, new Date(2026, 6, 12))).toEqual([]);
 });
 
+test("selectFormMissingRetryTargets: シグナルがある企業を先頭に、検知日の新しい順に並べる", () => {
+  // 大型調達直後の企業が「フォーム無」バケツに埋もれると、328社を上から開く間に
+  // 見逃してしまうため、通常バッチと同じ優先順位を効かせる。
+  // シート順と新しい順がちょうど逆になるように並べて、並び替えを検証する。
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "シグナルなし", note: "フォーム無" }),
+    makeRow({ rowIndex: 3, companyName: "古い", note: "フォーム無", signalDate: "2026/07/01" }),
+    makeRow({ rowIndex: 4, companyName: "新しい", note: "フォーム無", signalDate: "2026/07/20" }),
+  ];
+  const today = new Date(2026, 6, 21);
+  const targets = selectFormMissingRetryTargets(rows, today);
+  expect(targets.map((t) => t.row.companyName)).toEqual(["新しい", "古い", "シグナルなし"]);
+});
+
+test("selectFormMissingRetryTargets: シグナルがない企業同士はシートの並び順を保つ", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A", note: "フォーム無" }),
+    makeRow({ rowIndex: 3, companyName: "B", note: "フォーム無" }),
+    makeRow({ rowIndex: 4, companyName: "C", note: "フォーム無" }),
+  ];
+  const targets = selectFormMissingRetryTargets(rows, new Date(2026, 6, 21));
+  expect(targets.map((t) => t.row.companyName)).toEqual(["A", "B", "C"]);
+});
+
 test("selectFormMissingRetryTargets: 通常はisSkippedで除外される行でもattemptNumberを計算して対象に含む", () => {
   const row = makeRow({ note: "フォーム無", firstSentAt: "2026/07/01" });
   const today = new Date(2026, 6, 15); // 1回目から14日後 → 2回目が対象

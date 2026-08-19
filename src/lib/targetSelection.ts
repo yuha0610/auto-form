@@ -98,6 +98,23 @@ export function getNextAttempt(row: SheetRowData, today: Date): AttemptNumber | 
 
 const FORM_MISSING_MARKER = "フォーム無";
 
+/**
+ * シグナルがある対象を先に、その中では検知日が新しい順に並べる比較関数。
+ * それ以外は0を返し、安定ソートによってシートの並び順を保つ。
+ */
+function bySignalRecency(today: Date) {
+  return (a: EligibleTarget, b: EligibleTarget): number => {
+    const aHot = hasRecentSignal(a.row, today);
+    const bHot = hasRecentSignal(b.row, today);
+    if (aHot !== bHot) return aHot ? -1 : 1;
+    if (!aHot) return 0;
+
+    const aDate = parseSheetDate(a.row.signalDate)?.getTime() ?? 0;
+    const bDate = parseSheetDate(b.row.signalDate)?.getTime() ?? 0;
+    return bDate - aDate;
+  };
+}
+
 /** 自動発見でフォームが見つからず(備考に「フォーム無」が付いて)スキップされている行を、手動確認用に再度対象にする。 */
 export function selectFormMissingRetryTargets(
   rows: SheetRowData[],
@@ -111,7 +128,7 @@ export function selectFormMissingRetryTargets(
       targets.push({ row, attemptNumber });
     }
   }
-  return targets;
+  return targets.sort(bySignalRecency(today));
 }
 
 export function hasRecentSignal(row: SheetRowData, today: Date): boolean {
@@ -163,18 +180,5 @@ export function selectBatch(
     }
   }
 
-  // シグナルがある対象を先に、その中では検知日が新しい順に。
-  // それ以外は比較結果を0にして、安定ソートによりシートの並び順を保つ。
-  const sorted = [...eligible].sort((a, b) => {
-    const aHot = hasRecentSignal(a.row, today);
-    const bHot = hasRecentSignal(b.row, today);
-    if (aHot !== bHot) return aHot ? -1 : 1;
-    if (!aHot) return 0;
-
-    const aDate = parseSheetDate(a.row.signalDate)?.getTime() ?? 0;
-    const bDate = parseSheetDate(b.row.signalDate)?.getTime() ?? 0;
-    return bDate - aDate;
-  });
-
-  return sorted.slice(0, batchSize);
+  return eligible.sort(bySignalRecency(today)).slice(0, batchSize);
 }
