@@ -50,6 +50,31 @@ export function aggregateJobCompanies(entries: { id: string; name: string }[]): 
   return [...companies.values()];
 }
 
+const BRACKETED_REGEX = /[（(【「『]([^）)】」』]*)[）)】」』]/g;
+const FORMER_NAME_LABEL_REGEX = /^(旧社名|旧名称|旧称|旧)\s*[：:]?\s*/;
+
+/**
+ * スタクラの社名欄には「Landit Inc. / ランディット株式会社」「エレビスタ（株）「〇〇」…」
+ * 「OpenProp株式会社(旧社名:BIDHIT)」のように、併記・キャッチコピー・旧社名が
+ * 混ざって入っていることがある。そのままではコア名が一致しないため、
+ * 照合に使える社名の候補を列挙する。
+ */
+export function companyNameVariants(name: string): string[] {
+  const variants = new Set<string>();
+  const parts = name.split("/").map((part) => part.trim());
+  for (const part of [name, ...parts]) {
+    if (!part) continue;
+    variants.add(part);
+    variants.add(part.replace(BRACKETED_REGEX, " ").trim());
+    variants.add(part.split(/[（(【「『]/)[0].trim());
+    for (const bracketed of part.matchAll(BRACKETED_REGEX)) {
+      variants.add(bracketed[1].replace(FORMER_NAME_LABEL_REGEX, "").trim());
+    }
+  }
+  variants.delete("");
+  return [...variants];
+}
+
 export interface StarclaMatch {
   company: StarclaCompany;
   row: SheetRowData;
@@ -81,15 +106,21 @@ export function matchStarclaCompanies(
   const candidates: StarclaMatch[] = [];
   const alreadyMarked: StarclaMatch[] = [];
   for (const company of companies) {
-    const core = extractCompanyCoreName(normalizeCellText(company.name));
-    if (!core) continue;
-    for (const row of rowsByCore.get(core) ?? []) {
-      const match = { company, row };
-      if (row.note.includes(NEVER_SEND_MARKER)) {
-        alreadyMarked.push(match);
-        continue;
+    const seen = new Set<number>();
+    for (const variant of companyNameVariants(company.name)) {
+      const core = extractCompanyCoreName(normalizeCellText(variant));
+      if (!core) continue;
+      for (const row of rowsByCore.get(core) ?? []) {
+        // 別名候補どうしが同じ行を指すことがあるので、企業ごとに1行1回だけ数える
+        if (seen.has(row.rowIndex)) continue;
+        seen.add(row.rowIndex);
+        const match = { company, row };
+        if (row.note.includes(NEVER_SEND_MARKER)) {
+          alreadyMarked.push(match);
+          continue;
+        }
+        candidates.push(match);
       }
-      candidates.push(match);
     }
   }
 

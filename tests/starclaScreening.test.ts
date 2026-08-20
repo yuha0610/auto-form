@@ -136,3 +136,43 @@ test("matchStarclaCompanies: 企業名が空の行は照合対象にしない", 
 
   expect(result.candidates).toEqual([]);
 });
+
+test("matchStarclaCompanies: 社名にキャッチコピーが付いた掲載企業もシートの行に一致させる", () => {
+  const rows = [makeRow({ rowIndex: 119, companyName: "エレビスタ株式会社" })];
+  const companies = [
+    { id: "10", name: "エレビスタ（株）「30人で売上50億突破」少数精鋭ITベンチャー", jobCount: 5 },
+  ];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates.map((m) => m.row.rowIndex)).toEqual([119]);
+});
+
+test("matchStarclaCompanies: 英語表記と日本語表記が併記された掲載企業も一致させる", () => {
+  const rows = [makeRow({ rowIndex: 313, companyName: "ランディット株式会社" })];
+  const companies = [{ id: "10", name: "Landit Inc. / ランディット株式会社", jobCount: 16 }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates.map((m) => m.row.rowIndex)).toEqual([313]);
+});
+
+test("matchStarclaCompanies: 旧社名が併記されていれば旧社名の行にも一致させる", () => {
+  const rows = [makeRow({ rowIndex: 20, companyName: "株式会社BIDHIT" })];
+  const companies = [{ id: "10", name: "OpenProp株式会社（旧社名：BIDHIT）", jobCount: 1 }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates.map((m) => m.row.rowIndex)).toEqual([20]);
+});
+
+test("matchStarclaCompanies: 別名経由で同じ行が二重に候補入りしない", () => {
+  const rows = [makeRow({ rowIndex: 313, companyName: "ランディット株式会社" })];
+  const companies = [
+    { id: "10", name: "ランディット株式会社 / ランディット株式会社（旧社名：ランディット株式会社）", jobCount: 1 },
+  ];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates).toHaveLength(1);
+});
