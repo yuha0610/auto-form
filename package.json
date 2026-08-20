@@ -18,7 +18,8 @@
     "screen:non-startup": "tsx scripts/screenNonStartup.ts",
     "update:funding-info": "tsx scripts/updateFundingInfo.ts",
     "apply:signals": "tsx scripts/applySignals.ts",
-    "match:signal-sweep": "tsx scripts/matchSignalSweep.ts"
+    "match:signal-sweep": "tsx scripts/matchSignalSweep.ts",
+    "screen:starcla": "tsx scripts/screenStarcla.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",

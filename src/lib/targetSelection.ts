@@ -1,7 +1,7 @@
 import type { AttemptNumber, EligibleTarget, SheetRowData } from "../types.js";
 
 /** 送り先として登録しない企業の印。フォーム無の再挑戦モードでも対象から外す。 */
-const NEVER_SEND_MARKER = "送信NG";
+export const NEVER_SEND_MARKER = "送信NG";
 
 const SKIP_MARKERS = [
   "フォーム無",
