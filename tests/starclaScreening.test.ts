@@ -4,6 +4,8 @@ import {
   parseLastPageNumber,
   aggregateJobCompanies,
   matchStarclaCompanies,
+  parseCompanyPage,
+  parseCompanyListingPage,
 } from "../src/lib/starclaScreening.js";
 import type { SheetRowData } from "../src/types.js";
 
@@ -175,4 +177,112 @@ test("matchStarclaCompanies: 別名経由で同じ行が二重に候補入りし
   const result = matchStarclaCompanies(companies, rows);
 
   expect(result.candidates).toHaveLength(1);
+});
+
+const COMPANY_PAGE_HTML = `
+<h2>会社概要</h2>
+<table>
+  <tbody>
+    <tr><th>会社名</th><td>株式会社Recho</td></tr>
+    <tr><th>所在地</th><td>東京都</td></tr>
+    <tr><th>会社URL</th><td><a target="_blank" href="https://recho-ai.com/">https://recho-ai.com/</a></td></tr>
+    <tr><th>設立</th><td>2021年</td></tr>
+  </tbody>
+</table>`;
+
+test("parseCompanyPage: 会社概要テーブルから会社名と会社URLを取り出す", () => {
+  expect(parseCompanyPage(COMPANY_PAGE_HTML)).toEqual({
+    name: "株式会社Recho",
+    url: "https://recho-ai.com/",
+  });
+});
+
+test("parseCompanyPage: 会社URLの行が無ければurlはnullになる", () => {
+  const html = `<table><tbody><tr><th>会社名</th><td>株式会社Recho</td></tr></tbody></table>`;
+  expect(parseCompanyPage(html)).toEqual({ name: "株式会社Recho", url: null });
+});
+
+test("parseCompanyListingPage: 企業一覧のカードから企業IDと企業名を取り出す", () => {
+  const html = `
+<article class="cassetteCompany">
+  <a href="/online/companies/2081/" class="cassetteCompany__inner">
+    <figure class="cassetteCompany__thumb"><img src="https://startupclass.co.jp/rimg/xyz" alt="株式会社Recho"></figure>
+  </a>
+</article>
+<article class="cassetteCompany">
+  <a href="/online/companies/727/job_offers/16472/" class="cassetteCompany__inner">
+    <figure class="cassetteCompany__thumb"><img src="https://startupclass.co.jp/rimg/abc" alt="株式会社バカン"></figure>
+  </a>
+</article>`;
+
+  expect(parseCompanyListingPage(html)).toEqual([{ id: "2081", name: "株式会社Recho" }]);
+});
+
+test("matchStarclaCompanies: 社名が違っても会社URLのホストが一致すれば候補にする", () => {
+  const rows = [makeRow({ rowIndex: 7, companyName: "全く別の表記", companyUrl: "https://www.recho-ai.com/company" })];
+  const companies = [{ id: "10", name: "株式会社Recho", jobCount: 1, url: "https://recho-ai.com/" }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates.map((m) => m.row.rowIndex)).toEqual([7]);
+});
+
+test("matchStarclaCompanies: フォームサービスの共有ホストではURL一致とみなさない", () => {
+  const rows = [makeRow({ rowIndex: 7, companyName: "株式会社Metrics", companyUrl: "https://tally.so/r/mJk69K" })];
+  const companies = [{ id: "10", name: "よその会社", jobCount: 1, url: "https://tally.so/r/rjvr6p" }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates).toEqual([]);
+});
+
+test("matchStarclaCompanies: 社名とURLの両方で一致しても同じ行は1回だけ候補にする", () => {
+  const rows = [makeRow({ rowIndex: 7, companyName: "株式会社Recho", companyUrl: "https://recho-ai.com/" })];
+  const companies = [{ id: "10", name: "株式会社Recho", jobCount: 1, url: "https://recho-ai.com/" }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates).toHaveLength(1);
+});
+
+test("matchStarclaCompanies: PR TIMESなど共有ホストのURLでは一致とみなさない", () => {
+  const rows = [
+    makeRow({
+      rowIndex: 365,
+      companyName: "株式会社mov",
+      companyUrl: "https://prtimes.jp/main/html/rd/p/000000547.000024246.html",
+    }),
+  ];
+  const companies = [
+    {
+      id: "10",
+      name: "株式会社元年",
+      jobCount: 2,
+      url: "https://prtimes.jp/main/html/rd/p/000000001.000182781.html",
+    },
+  ];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates).toEqual([]);
+});
+
+test("matchStarclaCompanies: 社名は一致してもURLのホストが食い違う行は候補にせずconflictsに回す", () => {
+  const rows = [makeRow({ rowIndex: 1199, companyName: "株式会社WHERE", companyUrl: "https://where123.jp/" })];
+  const companies = [{ id: "10", name: "株式会社WHERE", jobCount: 4, url: "https://pntwhere.com/" }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates).toEqual([]);
+  expect(result.conflicts.map((m) => m.row.rowIndex)).toEqual([1199]);
+});
+
+test("matchStarclaCompanies: 会社URLが分からない企業は社名一致のまま候補にする", () => {
+  const rows = [makeRow({ rowIndex: 5, companyName: "株式会社ダイニー", companyUrl: "https://dinii.jp/" })];
+  const companies = [{ id: "10", name: "株式会社ダイニー", jobCount: 1, url: null }];
+
+  const result = matchStarclaCompanies(companies, rows);
+
+  expect(result.candidates.map((m) => m.row.rowIndex)).toEqual([5]);
+  expect(result.conflicts).toEqual([]);
 });

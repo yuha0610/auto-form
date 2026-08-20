@@ -54,3 +54,17 @@ test("extractCompanyCoreName: ㈱を除去する", () => {
 test("extractCompanyCoreName: 記号やスペースを除去する", () => {
   expect(extractCompanyCoreName("株式会社 Do＆Do.")).toBe("do＆do");
 });
+
+test("extractCompanyCoreName: 社名の内側にある英字の法人格トークンは除去しない", () => {
+  // 「Ginco」の中の Inc を落とすと「Go」になり、GO株式会社と同じコア名になってしまう
+  expect(extractCompanyCoreName("株式会社Ginco")).toBe("ginco");
+  expect(extractCompanyCoreName("Lincoln株式会社")).toBe("lincoln");
+  expect(extractCompanyCoreName("株式会社Corpus")).toBe("corpus");
+});
+
+test("extractCompanyCoreName: 独立した法人格トークンは今まで通り除去する", () => {
+  expect(extractCompanyCoreName("Sample Inc.")).toBe("sample");
+  expect(extractCompanyCoreName("Sample Inc")).toBe("sample");
+  expect(extractCompanyCoreName("Sample, Inc.")).toBe("sample");
+  expect(extractCompanyCoreName("Sample Co., Ltd.")).toBe("sample");
+});
