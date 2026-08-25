@@ -30,7 +30,7 @@ function hostOf(url: string): string | null {
 }
 
 /** カンマ・空白・改行のいずれの区切りでも受け付ける。 */
-function splitInput(input: string): string[] {
+export function splitUrlInput(input: string): string[] {
   return input
     .split(/[,\s]+/)
     .map((part) => part.trim())
@@ -38,28 +38,36 @@ function splitInput(input: string): string[] {
 }
 
 /**
- * 貼り付けられたURLを候補に突き合わせる。
+ * 1つのURLに一致する候補をすべて返す。
  * 完全一致を優先し、見つからなければホスト一致で拾う
  * (確認中にサイト内を移動してURLが変わっていても同じ企業と判断できるようにするため)。
+ * ホスト一致が複数あると同じホストを共有する別会社を取り違えかねないので、
+ * 1つに絞らず呼び出し側に判断を委ねる。
+ */
+export function findUrlMatches(url: string, candidates: UrlCandidate[]): UrlCandidate[] {
+  const normalized = normalizeUrl(url);
+  const exact = candidates.filter((candidate) =>
+    candidate.urls.some((candidateUrl) => normalizeUrl(candidateUrl) === normalized),
+  );
+  if (exact.length > 0) return exact;
+
+  const host = hostOf(url);
+  if (!host) return [];
+  return candidates.filter((candidate) =>
+    candidate.urls.some((candidateUrl) => hostOf(candidateUrl) === host),
+  );
+}
+
+/**
+ * 貼り付けられたURLを候補に突き合わせる。
+ * 一致が複数あるときは最初の候補を採用する。
  */
 export function matchPastedUrls(input: string, candidates: UrlCandidate[]): PastedUrlMatch {
   const matches: UrlPairing[] = [];
   const unmatched: string[] = [];
 
-  for (const pasted of splitInput(input)) {
-    const normalized = normalizeUrl(pasted);
-    let matched = candidates.find((candidate) =>
-      candidate.urls.some((url) => normalizeUrl(url) === normalized),
-    );
-
-    if (!matched) {
-      const host = hostOf(pasted);
-      if (host) {
-        matched = candidates.find((candidate) =>
-          candidate.urls.some((url) => hostOf(url) === host),
-        );
-      }
-    }
+  for (const pasted of splitUrlInput(input)) {
+    const matched = findUrlMatches(pasted, candidates)[0];
 
     if (!matched) {
       unmatched.push(pasted);

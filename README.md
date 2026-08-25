@@ -58,6 +58,7 @@ npm run playwright:install
 | `npm run screen:competitors` | 同業他社と判定した行を削除 | `--apply` で**行を削除** |
 | `npm run screen:non-startup` | 非スタートアップと判定した行を削除 | `--apply` で**行を削除** |
 | `npm run screen:starcla` | スタクラ掲載企業を「送信NG」にする | `--apply` で書き込み |
+| `npm run mark:skip` | 貼ったURLの企業にスキップ印を付ける | `--apply` で書き込み |
 
 `--apply` を付けない限り、いずれのメンテナンススクリプトもシートを変更しない(内容の確認だけ)。
 行を削除するスクリプトは取り消せないので、`--apply` を付ける前にシートのバックアップを取る。
@@ -89,9 +90,29 @@ npm run dev -- --batch-size 10
 営業を断る旨がサイトに明記されていた企業は、備考に「営業・セールスお断り」と手で記入しておくと、
 次回以降のバッチで自動的にスキップされる。
 
-理由を問わず今後送りたくない企業は、備考に「送信NG」と手で記入しておくと、
+理由を問わず今後送りたくない企業は、備考に「送信NG」と記入しておくと、
 `npm run dev` でも `npm run retry:form-missing` でも二度と対象にならない
 (「フォーム無」の再挑戦モードは他のスキップ理由を無視するが、「送信NG」だけは常に除外する)。
+
+手でシートを開かなくても、URLを貼るだけで印を付けられる。
+
+```bash
+# 確認のみ(既定の印は「送信NG」)
+npm run mark:skip -- https://example.com/contact https://another.example.jp/
+
+# 確認した内容のまま書き込む
+npm run mark:skip -- https://example.com/contact --apply
+
+# 「送信NG」以外の印を付ける
+npm run mark:skip -- https://example.com/contact --reason CAPTCHA --apply
+```
+
+URLはスペース・カンマ・改行のどれで区切ってもよく、会社URL・フォームURLのどちらでも同じ行に
+突き合わせる(パスが違ってもホストが同じなら拾う)。`--reason` にはシートで実際にスキップとして
+効く印しか指定できない。効かない印を書いてしまうと、外したつもりの企業に送信してしまうため。
+
+同じホストの行が複数あってどの企業か絞れないURLは、取り違えを避けて書き込まず「要確認」として
+一覧表示する。シートに見つからなかったURLも黙って捨てず一覧に出る。
 
 バッチの送信結果をスプレッドシートに記録した後、その時点での「今日の累計送信件数」がSlackに通知される(`SLACK_WEBHOOK_URL` を設定している場合のみ)。
 

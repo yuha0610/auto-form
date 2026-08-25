@@ -19,7 +19,8 @@
     "update:funding-info": "tsx scripts/updateFundingInfo.ts",
     "apply:signals": "tsx scripts/applySignals.ts",
     "match:signal-sweep": "tsx scripts/matchSignalSweep.ts",
-    "screen:starcla": "tsx scripts/screenStarcla.ts"
+    "screen:starcla": "tsx scripts/screenStarcla.ts",
+    "mark:skip": "tsx scripts/markSkip.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { matchPastedUrls } from "../src/lib/urlMatch.js";
+import { findUrlMatches, matchPastedUrls, splitUrlInput } from "../src/lib/urlMatch.js";
 
 const candidates = [
   { key: 10, urls: ["https://alpha.example.com/contact"] },
@@ -81,4 +81,35 @@ test("matchPastedUrls: ホストが同じ候補が複数あるときは完全一
   ];
   const result = matchPastedUrls("https://shared.example.com/b", sameHost);
   expect(result.matches.map((m) => m.key)).toEqual([2]);
+});
+
+test("findUrlMatches: ホストが同じ候補が複数あり完全一致がないときは全部返す", () => {
+  const sameHost = [
+    { key: 1, urls: ["https://shared.example.com/a"] },
+    { key: 2, urls: ["https://shared.example.com/b"] },
+  ];
+  // どちらの企業を指すか確定できないので、呼び出し側が判断できるよう両方返す
+  const result = findUrlMatches("https://shared.example.com/other", sameHost);
+  expect(result.map((c) => c.key)).toEqual([1, 2]);
+});
+
+test("findUrlMatches: 完全一致があればホスト一致の候補は返さない", () => {
+  const sameHost = [
+    { key: 1, urls: ["https://shared.example.com/a"] },
+    { key: 2, urls: ["https://shared.example.com/b"] },
+  ];
+  expect(findUrlMatches("https://shared.example.com/b", sameHost).map((c) => c.key)).toEqual([2]);
+});
+
+test("findUrlMatches: どれにも一致しなければ空配列", () => {
+  expect(findUrlMatches("https://unknown.example.org/", candidates)).toEqual([]);
+});
+
+test("splitUrlInput: カンマ・空白・改行のどれでも区切れる", () => {
+  expect(splitUrlInput("https://a.example.com, https://b.example.com\nhttps://c.example.com")).toEqual([
+    "https://a.example.com",
+    "https://b.example.com",
+    "https://c.example.com",
+  ]);
+  expect(splitUrlInput("  \n ")).toEqual([]);
 });
