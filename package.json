@@ -20,7 +20,8 @@
     "apply:signals": "tsx scripts/applySignals.ts",
     "match:signal-sweep": "tsx scripts/matchSignalSweep.ts",
     "screen:starcla": "tsx scripts/screenStarcla.ts",
-    "mark:skip": "tsx scripts/markSkip.ts"
+    "mark:skip": "tsx scripts/markSkip.ts",
+    "rescan:form-missing": "tsx scripts/rescanFormMissing.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",
