@@ -4,7 +4,7 @@ import { Command } from "commander";
 import { chromium, type Page } from "playwright";
 import { loadTemplate, renderTemplate } from "./lib/templates.js";
 import { injectFillBanner } from "./lib/formSubmitter.js";
-import { findContactFormUrl, extractMailto } from "./lib/formDiscovery.js";
+import { findContactLink } from "./lib/formDiscovery.js";
 import { fillFormWithDiscovery } from "./lib/formFillFlow.js";
 import { gotoWithRetry, NavigationError } from "./lib/navigation.js";
 import { checkSubmissionOutcome } from "./lib/completionCheck.js";
@@ -153,8 +153,8 @@ program
             await gotoWithRetry(page, formUrl, { waitUntil: "domcontentloaded" });
           } else {
             await gotoWithRetry(page, target.row.companyUrl, { waitUntil: "domcontentloaded" });
-            const discovered = await findContactFormUrl(page);
-            if (!discovered) {
+            const contactLink = await findContactLink(page);
+            if (!contactLink) {
               console.warn(`[${target.row.companyName}] お問い合わせフォームが見つかりませんでした`);
               outcomeUpdates.push({
                 rowIndex: target.row.rowIndex,
@@ -168,23 +168,43 @@ program
               continue;
             }
 
-            const email = extractMailto(discovered);
-            if (email) {
-              console.warn(`[${target.row.companyName}] お問い合わせ先がメールアドレスでした: ${email}`);
+            if (contactLink.kind === "email") {
+              console.warn(
+                `[${target.row.companyName}] お問い合わせ先がメールアドレスでした: ${contactLink.address}`,
+              );
               outcomeUpdates.push({
                 rowIndex: target.row.rowIndex,
                 attemptNumber: target.attemptNumber,
                 outcome: "email",
                 existingNote: target.row.note,
-                email,
+                email: contactLink.address,
               });
               expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
               await page.close();
               continue;
             }
 
-            await gotoWithRetry(page, discovered, { waitUntil: "domcontentloaded" });
-            formUrl = discovered;
+            if (contactLink.kind === "google-form") {
+              console.warn(
+                `[${target.row.companyName}] お問い合わせ先がGoogle Formでした: ${contactLink.url}`,
+              );
+              outcomeUpdates.push({
+                rowIndex: target.row.rowIndex,
+                attemptNumber: target.attemptNumber,
+                outcome: "failed",
+                existingNote: target.row.note,
+                failureReason: "Google Formで不可",
+              });
+              expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
+              await page.close();
+              continue;
+            }
+
+            // ページ内アンカーの場合、フォームは今開いているページにあるので遷移しない
+            if (contactLink.kind === "form") {
+              await gotoWithRetry(page, contactLink.url, { waitUntil: "domcontentloaded" });
+            }
+            formUrl = contactLink.url;
           }
 
           const personalizedTemplate = renderTemplate(template, target.row.companyName);

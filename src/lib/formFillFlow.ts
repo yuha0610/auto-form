@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { Template } from "../types.js";
 import { fillForm, type FillResult } from "./formSubmitter.js";
-import { findContactFormUrl } from "./formDiscovery.js";
+import { findContactLink } from "./formDiscovery.js";
 import { gotoWithRetry } from "./navigation.js";
 
 export interface FillFlowResult extends FillResult {
@@ -23,10 +23,13 @@ export async function fillFormWithDiscovery(
     return result;
   }
 
-  const nestedUrl = await findContactFormUrl(page);
-  if (!nestedUrl || nestedUrl === page.url()) {
+  // 遷移して入力し直せるのは別ページのフォームだけ。同じページ・メール・Google Formは
+  // ここで遷移しても状況が変わらないので、最初の結果をそのまま返す。
+  const nested = await findContactLink(page);
+  if (!nested || nested.kind !== "form" || nested.url === page.url()) {
     return result;
   }
+  const nestedUrl = nested.url;
 
   await gotoWithRetry(page, nestedUrl, { waitUntil: "domcontentloaded" });
   const retryResult = await fillForm(page, template);
