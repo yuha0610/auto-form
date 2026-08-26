@@ -60,6 +60,7 @@ npm run playwright:install
 | `npm run screen:starcla` | スタクラ掲載企業を「送信NG」にする | `--apply` で書き込み |
 | `npm run mark:skip` | 貼ったURLの企業にスキップ印を付ける | `--apply` で書き込み |
 | `npm run rescan:form-missing` | 「フォーム無」の企業を再スキャンして送信対象に戻す | `--apply` で書き込み |
+| `npm run record` | バッチの結果をまとめてシートに記録する | `--apply` で書き込み |
 
 `--apply` を付けない限り、いずれのメンテナンススクリプトもシートを変更しない(内容の確認だけ)。
 行を削除するスクリプトは取り消せないので、`--apply` を付ける前にシートのバックアップを取る。
@@ -114,6 +115,40 @@ URLはスペース・カンマ・改行のどれで区切ってもよく、会�
 
 同じホストの行が複数あってどの企業か絞れないURLは、取り違えを避けて書き込まず「要確認」として
 一覧表示する。シートに見つからなかったURLも黙って捨てず一覧に出る。
+
+## バッチの結果をまとめて記録する
+
+ターミナルの案内に従わずに送信作業をした場合など、後からまとめて結果を記録したいときに使う。
+1件ごとに「どのURLの企業が」「どうなったか」を書いたJSONファイルを渡す。
+
+```bash
+npm run record -- data/batch-result.json           # 確認のみ
+npm run record -- data/batch-result.json --apply   # 反映
+```
+
+```json
+[
+  { "url": "https://example.com/", "outcome": "sent", "formUrl": "https://example.com/contact" },
+  { "url": "https://other.example/", "outcome": "email", "email": "info@other.example" },
+  { "url": "https://third.example/contact", "outcome": "failed" },
+  { "url": "https://fourth.example/", "outcome": "skip", "reason": "リンク切れ" }
+]
+```
+
+| outcome | 記録する内容 |
+| --- | --- |
+| `sent` | まだ日付の無い送信回に今日の日付を入れる(1→2→3回目の順) |
+| `email` | 「メールアドレス」列に保存し、備考を「メール」にする |
+| `failed` | 備考に「送信失敗」を追記する |
+| `skip` | `reason` に指定したスキップ印を付ける |
+| `form-url` | 「フォームURL」列だけを更新する |
+
+`formUrl`は`sent`/`failed`/`form-url`で、`email`は`email`で、`reason`は`skip`で使う。
+どの結果でも備考から「フォーム無」は外す(実態と合わなくなるため)。
+すでに同じ印が付いている行や、人が手で入れたフォームURL・メールアドレスは上書きしない。
+`sent`で3回とも送信済みの行は、書き込まずエラーとして一覧に出す。
+
+`mark:skip`と同じく、URLが複数行に一致した場合と1行も一致しなかった場合は書き込まず一覧表示する。
 
 バッチの送信結果をスプレッドシートに記録した後、その時点での「今日の累計送信件数」がSlackに通知される(`SLACK_WEBHOOK_URL` を設定している場合のみ)。
 
