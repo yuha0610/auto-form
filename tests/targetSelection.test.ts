@@ -6,7 +6,7 @@ import {
   getNextAttempt,
   hasRecentSignal,
   selectBatch,
-  dedupeByCompanyName,
+  selectSendableRows,
   summarizeSkipped,
   selectFormMissingRetryTargets,
 } from "../src/lib/targetSelection.js";
@@ -145,38 +145,49 @@ test("selectBatch: 対象行を先頭からbatchSize件だけ返す", () => {
   expect(batch.every((t) => t.attemptNumber === 1)).toBe(true);
 });
 
-test("dedupeByCompanyName: 企業名が重複していれば送信が最も進んでいる行だけを残す", () => {
+test("selectSendableRows: 企業名が重複していれば送信が最も進んでいる行だけを残す", () => {
   const rows = [
-    makeRow({ rowIndex: 2, companyName: "A社" }),
-    makeRow({ rowIndex: 3, companyName: "A社", firstSentAt: "2026/06/01" }),
+    makeRow({ rowIndex: 2, companyName: "A社", companyUrl: "https://a.example/" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "A社",
+      companyUrl: "https://a2.example/",
+      firstSentAt: "2026/06/01",
+    }),
   ];
-  const deduped = dedupeByCompanyName(rows);
-  expect(deduped.map((r) => r.rowIndex)).toEqual([3]);
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([3]);
 });
 
-test("dedupeByCompanyName: 表記ゆれ(前後の空白/大文字小文字)も同一企業として扱う", () => {
+test("selectSendableRows: 表記ゆれ(前後の空白/大文字小文字)も同一企業として扱う", () => {
   const rows = [
-    makeRow({ rowIndex: 2, companyName: " Example Inc " }),
-    makeRow({ rowIndex: 3, companyName: "example inc", secondSentAt: "2026/06/01", firstSentAt: "2026/05/01" }),
+    makeRow({ rowIndex: 2, companyName: " Example Inc ", companyUrl: "https://a.example/" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "example inc",
+      companyUrl: "https://b.example/",
+      secondSentAt: "2026/06/01",
+      firstSentAt: "2026/05/01",
+    }),
   ];
-  const deduped = dedupeByCompanyName(rows);
-  expect(deduped.map((r) => r.rowIndex)).toEqual([3]);
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([3]);
 });
 
-test("dedupeByCompanyName: 重複がなければ元の並び順のまま返す", () => {
+test("selectSendableRows: 重複がなければ元の並び順のまま返す", () => {
   const rows = [
-    makeRow({ rowIndex: 2, companyName: "A社" }),
-    makeRow({ rowIndex: 3, companyName: "B社" }),
+    makeRow({ rowIndex: 2, companyName: "A社", companyUrl: "https://a.example/" }),
+    makeRow({ rowIndex: 3, companyName: "B社", companyUrl: "https://b.example/" }),
   ];
-  expect(dedupeByCompanyName(rows)).toEqual(rows);
+  expect(selectSendableRows(rows, new Date(2026, 7, 29)).rows).toEqual(rows);
 });
 
-test("dedupeByCompanyName: 企業名が空の行は重複判定せずそのまま残す", () => {
+test("selectSendableRows: 企業名もURLも空の行は重複判定せずそのまま残す", () => {
   const rows = [
-    makeRow({ rowIndex: 2, companyName: "" }),
-    makeRow({ rowIndex: 3, companyName: "" }),
+    makeRow({ rowIndex: 2, companyName: "", companyUrl: "" }),
+    makeRow({ rowIndex: 3, companyName: "", companyUrl: "" }),
   ];
-  expect(dedupeByCompanyName(rows)).toEqual(rows);
+  expect(selectSendableRows(rows, new Date(2026, 7, 29)).rows).toEqual(rows);
 });
 
 test("summarizeSkipped: スキップ理由ごとに企業名をグルーピングする", () => {
@@ -368,4 +379,117 @@ test("一時的な失敗が1回だけの行は再挑戦の対象に残す", () =
     const row = makeRow({ note: marker });
     expect(getNextAttempt(row, new Date(2026, 7, 29)), marker).toBe(1);
   }
+});
+
+test("selectSendableRows: 法人格の表記ゆれも同一企業として扱い、送信が最も進んだ行だけを残す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "株式会社アマテラス", companyUrl: "https://a.example.com/" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "アマテラス株式会社",
+      companyUrl: "https://b.example.com/",
+      firstSentAt: "2026/06/01",
+    }),
+  ];
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("selectSendableRows: 社名が違っても企業URLのホストが同じなら同一企業として扱う", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "旧アマテラス", companyUrl: "https://www.amateras.example/" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "新アマテラス",
+      companyUrl: "https://amateras.example/contact",
+      firstSentAt: "2026/06/01",
+    }),
+  ];
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([3]);
+});
+
+test("selectSendableRows: 共有ホスティングのホストが同じでも別企業として扱う", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社", companyUrl: "https://note.com/a-corp" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "B社",
+      companyUrl: "https://note.com/b-corp",
+      firstSentAt: "2026/06/01",
+    }),
+  ];
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([2, 3]);
+});
+
+test("selectSendableRows: 別行で13日前に送信済みなら、その企業を今回の対象から外す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "アマテラス株式会社", firstSentAt: "2026/08/16" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "株式会社アマテラス",
+      firstSentAt: "2026/01/10",
+      secondSentAt: "2026/02/01",
+    }),
+  ];
+  const { rows: sendable, cooling } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable).toEqual([]);
+  expect(cooling).toEqual([{ companyName: "株式会社アマテラス", lastSentAt: "2026/08/16" }]);
+});
+
+test("selectSendableRows: 別行の送信から14日経っていれば対象に残す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "アマテラス株式会社", firstSentAt: "2026/08/15" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "株式会社アマテラス",
+      firstSentAt: "2026/01/10",
+      secondSentAt: "2026/02/01",
+    }),
+  ];
+  const { rows: sendable, cooling } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([3]);
+  expect(cooling).toEqual([]);
+});
+
+test("selectSendableRows: 同一企業としてまとめた結果、除外した行数を返す", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社", companyUrl: "https://a.example/" }),
+    makeRow({ rowIndex: 3, companyName: "株式会社A社", companyUrl: "https://a2.example/" }),
+    makeRow({ rowIndex: 4, companyName: "B社", companyUrl: "https://b.example/" }),
+  ];
+  expect(selectSendableRows(rows, new Date(2026, 7, 29)).duplicateRows).toBe(1);
+});
+
+test("selectSendableRows: 企業URL欄がPR TIMESの記事URLの行同士は同一企業とみなさない", () => {
+  const rows = [
+    makeRow({
+      rowIndex: 2,
+      companyName: "A社",
+      companyUrl: "https://prtimes.jp/main/html/rd/p/000000547.000024246.html",
+    }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "B社",
+      companyUrl: "https://prtimes.jp/main/html/rd/p/000000002.000169761.html",
+      firstSentAt: "2026/06/01",
+    }),
+  ];
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([2, 3]);
+});
+
+test("selectSendableRows: 企業URL欄がフォームSaaSの共有URLの行同士は同一企業とみなさない", () => {
+  const rows = [
+    makeRow({ rowIndex: 2, companyName: "A社", companyUrl: "https://share.hsforms.com/1OzFJMz" }),
+    makeRow({
+      rowIndex: 3,
+      companyName: "B社",
+      companyUrl: "https://share.hsforms.com/1tbQAtb",
+      firstSentAt: "2026/06/01",
+    }),
+  ];
+  const { rows: sendable } = selectSendableRows(rows, new Date(2026, 7, 29));
+  expect(sendable.map((r) => r.rowIndex)).toEqual([2, 3]);
 });

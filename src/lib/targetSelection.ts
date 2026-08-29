@@ -1,4 +1,5 @@
 import type { AttemptNumber, EligibleTarget, SheetRowData } from "../types.js";
+import { extractCompanyCoreName } from "./textNormalize.js";
 
 /** 送り先として登録しない企業の印。フォーム無の再挑戦モードでも対象から外す。 */
 export const NEVER_SEND_MARKER = "送信NG";
@@ -158,34 +159,11 @@ export function hasRecentSignal(row: SheetRowData, today: Date): boolean {
   return daysBetween(signalDate, today) <= SIGNAL_RECENCY_DAYS;
 }
 
-function normalizeCompanyName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, "");
-}
-
 export function attemptProgress(row: SheetRowData): number {
   if (row.thirdSentAt) return 3;
   if (row.secondSentAt) return 2;
   if (row.firstSentAt) return 1;
   return 0;
-}
-
-/**
- * 同一企業名の行が複数存在する場合、送信が最も進んでいる行だけを残す。
- * (行の重複により同じ企業に二重送信してしまうのを防ぐ)
- */
-export function dedupeByCompanyName(rows: SheetRowData[]): SheetRowData[] {
-  const bestByName = new Map<string, SheetRowData>();
-  for (const row of rows) {
-    const key = normalizeCompanyName(row.companyName);
-    if (!key) continue;
-    const existing = bestByName.get(key);
-    if (!existing || attemptProgress(row) > attemptProgress(existing)) {
-      bestByName.set(key, row);
-    }
-  }
-
-  const best = new Set(bestByName.values());
-  return rows.filter((row) => !normalizeCompanyName(row.companyName) || best.has(row));
 }
 
 export function selectBatch(
@@ -202,4 +180,202 @@ export function selectBatch(
   }
 
   return eligible.sort(bySignalRecency(today)).slice(0, batchSize);
+}
+
+export interface CoolingCompany {
+  companyName: string;
+  lastSentAt: string;
+}
+
+export interface SendableRows {
+  rows: SheetRowData[];
+  /** 同一企業とみなしてまとめた結果、対象から外した重複行の数。 */
+  duplicateRows: number;
+  cooling: CoolingCompany[];
+}
+
+/**
+ * 複数の企業が同じホストを共有しうるドメイン(共有ホスティング・フォームSaaS・
+ * プレスリリース配信・SNS)。ここが一致しても同じ企業とは限らないので、
+ * 企業の同一判定キーには使わない。
+ * (企業URL欄にPR TIMESの記事URLやHubSpotの共有フォームURLが入っている行が実際にある)
+ */
+const NON_IDENTIFYING_HOSTS = [
+  // 共有ホスティング・サイトビルダー
+  "wixsite.com",
+  "wixstudio.com",
+  "jimdofree.com",
+  "jimdo.com",
+  "myshopify.com",
+  "studio.site",
+  "webnode.jp",
+  "amebaownd.com",
+  "goope.jp",
+  "peraichi.com",
+  "localinfo.jp",
+  "crayonsite.com",
+  "shopselect.net",
+  "thebase.in",
+  "base.shop",
+  "stores.jp",
+  "square.site",
+  "weebly.com",
+  "strikingly.com",
+  "bindcloud.jp",
+  "sakura.ne.jp",
+  "xsrv.jp",
+  "lolipop.jp",
+  "netlify.app",
+  "vercel.app",
+  "github.io",
+  "wordpress.com",
+  // フォームSaaS
+  "hsforms.com",
+  "hubspot.com",
+  "hubspotpagebuilder.com",
+  "form.run",
+  "formzu.net",
+  "form-mailer.jp",
+  "formmailer.jp",
+  "typeform.com",
+  "jotform.com",
+  "tayori.com",
+  "docs.google.com",
+  "google.com",
+  "forms.gle",
+  // プレスリリース配信・メディア
+  "prtimes.jp",
+  "atpress.ne.jp",
+  "valuepress.com",
+  "kyodonewsprwire.jp",
+  "jpubb.com",
+  "note.com",
+  "hatenablog.com",
+  "thebridge.jp",
+  // SNS・求人
+  "facebook.com",
+  "instagram.com",
+  "twitter.com",
+  "x.com",
+  "wantedly.com",
+  "en-gage.net",
+  "herp.careers",
+];
+
+/** 企業URLのホスト(www.除去)。共有ホスティングのURLはnullを返す。 */
+function companyHost(url: string): string | null {
+  let host: string;
+  try {
+    host = new URL(url.trim()).host.toLowerCase();
+  } catch {
+    return null;
+  }
+  host = host.replace(/^www\./, "");
+  if (!host) return null;
+  const isShared = NON_IDENTIFYING_HOSTS.some(
+    (shared) => host === shared || host.endsWith(`.${shared}`),
+  );
+  return isShared ? null : host;
+}
+
+/**
+ * 同じ企業を指すと判断できるキー。
+ * 社名のコア名(法人格の表記ゆれを吸収)と企業URLのホストの両方を見るので、
+ * 旧社名のまま残っている行も新社名の行と同じ企業として扱える。
+ */
+function identityKeys(row: SheetRowData): string[] {
+  const keys: string[] = [];
+  const coreName = extractCompanyCoreName(row.companyName);
+  if (coreName) keys.push(`name:${coreName}`);
+  const host = companyHost(row.companyUrl);
+  if (host) keys.push(`host:${host}`);
+  return keys;
+}
+
+/** キーを1つでも共有する行を同一企業としてまとめる(Union-Find)。 */
+function groupRowsByCompany(rows: SheetRowData[]): SheetRowData[][] {
+  const parent = new Map<string, string>();
+  const find = (key: string): string => {
+    let root = key;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cursor = key;
+    while (parent.get(cursor) !== root) {
+      const next = parent.get(cursor)!;
+      parent.set(cursor, root);
+      cursor = next;
+    }
+    return root;
+  };
+
+  const keysByRow = rows.map(identityKeys);
+  for (const keys of keysByRow) {
+    for (const key of keys) if (!parent.has(key)) parent.set(key, key);
+    for (const key of keys.slice(1)) parent.set(find(keys[0]), find(key));
+  }
+
+  const groupByRoot = new Map<string, SheetRowData[]>();
+  const groups: SheetRowData[][] = [];
+  rows.forEach((row, index) => {
+    const keys = keysByRow[index];
+    if (keys.length === 0) {
+      groups.push([row]);
+      return;
+    }
+    const root = find(keys[0]);
+    const existing = groupByRoot.get(root);
+    if (existing) {
+      existing.push(row);
+      return;
+    }
+    const group = [row];
+    groupByRoot.set(root, group);
+    groups.push(group);
+  });
+
+  return groups;
+}
+
+function bestRowOf(group: SheetRowData[]): SheetRowData {
+  return group.reduce((best, row) => (attemptProgress(row) > attemptProgress(best) ? row : best), group[0]);
+}
+
+/** グループ内の全行を通じた最終送信日。1度も送っていなければnull。 */
+function lastSentAtOf(group: SheetRowData[]): string | null {
+  let latest: { value: string; time: number } | null = null;
+  for (const row of group) {
+    for (const value of [row.firstSentAt, row.secondSentAt, row.thirdSentAt]) {
+      const date = parseSheetDate(value);
+      if (!date || !value) continue;
+      if (!latest || date.getTime() > latest.time) latest = { value, time: date.getTime() };
+    }
+  }
+  return latest?.value ?? null;
+}
+
+/**
+ * 送信対象の候補となる行を返す。
+ * 同一企業(社名のコア名または企業URLのホストが一致)が複数行ある場合は、
+ * 送信が最も進んだ行だけを残す。さらに、別行での送信も含めて最終送信から
+ * 14日経っていない企業はまとめて今回の対象から外す(二重送信・短期連投の防止)。
+ */
+export function selectSendableRows(rows: SheetRowData[], today: Date): SendableRows {
+  const kept = new Set<SheetRowData>();
+  const cooling: CoolingCompany[] = [];
+  let duplicateRows = 0;
+
+  for (const group of groupRowsByCompany(rows)) {
+    duplicateRows += group.length - 1;
+    const best = bestRowOf(group);
+    const lastSentAt = lastSentAtOf(group);
+    const lastSent = parseSheetDate(lastSentAt);
+    if (lastSent && daysBetween(lastSent, today) < FOLLOW_UP_INTERVAL_DAYS) {
+      if (computeAttemptNumber(best, today) !== null) {
+        cooling.push({ companyName: best.companyName, lastSentAt: lastSentAt! });
+      }
+      continue;
+    }
+    kept.add(best);
+  }
+
+  return { rows: rows.filter((row) => kept.has(row)), duplicateRows, cooling };
 }

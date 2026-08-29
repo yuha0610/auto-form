@@ -27,7 +27,7 @@ import {
 import {
   selectBatch,
   selectFormMissingRetryTargets,
-  dedupeByCompanyName,
+  selectSendableRows,
   summarizeSkipped,
 } from "./lib/targetSelection.js";
 import { parseSheetRows } from "./lib/sheetData.js";
@@ -106,18 +106,25 @@ program
 
     const raw = await fetchSheetData(sheetsClient, spreadsheetId, sheetName);
     const rows = parseSheetRows(raw);
-    const dedupedRows = dedupeByCompanyName(rows);
-    if (dedupedRows.length < rows.length) {
+    const today = new Date();
+    const { rows: sendableRows, duplicateRows, cooling } = selectSendableRows(rows, today);
+    if (duplicateRows > 0) {
       console.log(
-        `企業名が重複する行を${rows.length - dedupedRows.length}件検出したため、` +
+        `同一企業とみなせる重複行を${duplicateRows}件検出したため、` +
           `送信が最も進んでいる行のみを対象にします(二重送信防止)。`,
       );
+    }
+    if (cooling.length > 0) {
+      console.log(`前回送信から2週間経っていないため${cooling.length}社を対象外にします:`);
+      for (const company of cooling) {
+        console.log(`  - ${company.companyName}(最終送信 ${company.lastSentAt})`);
+      }
     }
 
     const isFormMissingRetry = Boolean(opts.retryFormMissing);
     const candidates = isFormMissingRetry
-      ? selectFormMissingRetryTargets(dedupedRows, new Date())
-      : selectBatch(dedupedRows, dedupedRows.length, new Date());
+      ? selectFormMissingRetryTargets(sendableRows, today)
+      : selectBatch(sendableRows, sendableRows.length, today);
     if (candidates.length === 0) {
       console.log(
         isFormMissingRetry
