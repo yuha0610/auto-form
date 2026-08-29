@@ -349,3 +349,23 @@ test("selectFormMissingRetryTargets: 通常はisSkippedで除外される行で�
   expect(targets).toHaveLength(1);
   expect(targets[0].attemptNumber).toBe(2);
 });
+
+test("何度やっても直らない読み込み失敗の行は次回から対象にしない", () => {
+  for (const marker of ["URL不正(名前解決失敗)", "証明書エラー(URL要確認)", "読み込み失敗(要確認)"]) {
+    const row = makeRow({ note: marker });
+    expect(isSkipped(row), marker).toBe(true);
+    expect(getNextAttempt(row, new Date(2026, 7, 29)), marker).toBeNull();
+  }
+});
+
+test("一時的な失敗が続いた行に付ける「接続不可」は対象から外す", () => {
+  const row = makeRow({ note: "タイムアウト(再試行済・要確認) / 接続不可" });
+  expect(isSkipped(row)).toBe(true);
+});
+
+test("一時的な失敗が1回だけの行は再挑戦の対象に残す", () => {
+  for (const marker of ["タイムアウト(再試行済・要確認)", "接続エラー(再試行済・要確認)"]) {
+    const row = makeRow({ note: marker });
+    expect(getNextAttempt(row, new Date(2026, 7, 29)), marker).toBe(1);
+  }
+});

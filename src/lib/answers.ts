@@ -16,3 +16,14 @@ export function parseAnswerNumber(input: string): number | null {
   if (!/^\d+$/.test(normalized)) return null;
   return Number(normalized);
 }
+
+/**
+ * 複数の番号をまとめて読む。区切りはカンマ・空白・読点のどれでもよい。
+ * 番号として読めないものは無視する(打ち間違いで全体を捨てないため)。
+ */
+export function parseAnswerNumbers(input: string): number[] {
+  return input
+    .split(/[,、，\s　]+/)
+    .map((part) => parseAnswerNumber(part))
+    .filter((value): value is number => value !== null);
+}

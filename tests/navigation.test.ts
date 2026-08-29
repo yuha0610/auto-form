@@ -181,3 +181,9 @@ test("x-cloak等でJS初期化まで入力欄が非表示のページでは、�
   expect(elapsed).toBeGreaterThanOrEqual(180);
   expect(await page.locator("input[name='company']").isVisible()).toBe(true);
 });
+
+test("NavigationError は失敗の種別を持ち、記録側が再挑戦の要否を判断できる", () => {
+  const error = new NavigationError(classifyGotoError("ERR_NAME_NOT_RESOLVED"), new Error("boom"));
+  expect(error.label).toBe("URL不正(名前解決失敗)");
+  expect(error.category).toBe("dns");
+});

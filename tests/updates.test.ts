@@ -93,3 +93,52 @@ test("failed: failureReasonがCAPTCHAの場合も同じ経路で備考へ追記�
     { rowIndex: 5, columnName: COLUMNS.note, value: "CAPTCHA" },
   ]);
 });
+
+test("failed: 同じ失敗理由がすでに備考にあれば重ねて追記しない", () => {
+  const writes = buildUpdates(
+    {
+      rowIndex: 5,
+      attemptNumber: 1,
+      outcome: "failed",
+      existingNote: "URL不正(名前解決失敗)",
+      failureReason: "URL不正(名前解決失敗)",
+      failureCategory: "dns",
+    },
+    today,
+  );
+  expect(writes).toEqual([]);
+});
+
+test("failed: 一時的な失敗が2回目なら「接続不可」を付けて打ち切る", () => {
+  const writes = buildUpdates(
+    {
+      rowIndex: 5,
+      attemptNumber: 1,
+      outcome: "failed",
+      existingNote: "タイムアウト(再試行済・要確認)",
+      failureReason: "タイムアウト(再試行済・要確認)",
+      failureCategory: "timeout",
+    },
+    today,
+  );
+  expect(writes).toEqual([
+    { rowIndex: 5, columnName: COLUMNS.note, value: "タイムアウト(再試行済・要確認) / 接続不可" },
+  ]);
+});
+
+test("failed: 一時的な失敗の1回目はこれまで通り理由だけ追記する", () => {
+  const writes = buildUpdates(
+    {
+      rowIndex: 5,
+      attemptNumber: 1,
+      outcome: "failed",
+      existingNote: "",
+      failureReason: "接続エラー(再試行済・要確認)",
+      failureCategory: "connection",
+    },
+    today,
+  );
+  expect(writes).toEqual([
+    { rowIndex: 5, columnName: COLUMNS.note, value: "接続エラー(再試行済・要確認)" },
+  ]);
+});

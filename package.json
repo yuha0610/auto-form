@@ -22,6 +22,8 @@
     "screen:starcla": "tsx scripts/screenStarcla.ts",
     "mark:skip": "tsx scripts/markSkip.ts",
     "rescan:form-missing": "tsx scripts/rescanFormMissing.ts",
+    "cleanup:notes": "tsx scripts/cleanupNotes.ts",
+    "list:uncertain": "tsx scripts/listUncertain.ts",
     "record": "tsx scripts/record.ts"
   },
   "dependencies": {

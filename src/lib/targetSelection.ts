@@ -3,6 +3,19 @@ import type { AttemptNumber, EligibleTarget, SheetRowData } from "../types.js";
 /** 送り先として登録しない企業の印。フォーム無の再挑戦モードでも対象から外す。 */
 export const NEVER_SEND_MARKER = "送信NG";
 
+/**
+ * 何度開き直しても結果が変わらない失敗の印。
+ * これらを対象に残すと同じ企業が毎回バッチの先頭を占め続けてしまうため、1回で打ち切る。
+ */
+export const PERMANENT_FAILURE_MARKERS = [
+  "URL不正(名前解決失敗)",
+  "証明書エラー(URL要確認)",
+  "読み込み失敗(要確認)",
+];
+
+/** 一時的な失敗(タイムアウト・接続エラー)が上限回数に達した行に付ける印。 */
+export const REPEATED_FAILURE_MARKER = "接続不可";
+
 /** 備考に含まれていれば送信対象から外す印。 */
 export const SKIP_MARKERS = [
   "フォーム無",
@@ -14,6 +27,8 @@ export const SKIP_MARKERS = [
   "CAPTCHA",
   "営業・セールスお断り",
   NEVER_SEND_MARKER,
+  ...PERMANENT_FAILURE_MARKERS,
+  REPEATED_FAILURE_MARKER,
 ];
 
 const FOLLOW_UP_INTERVAL_DAYS = 14;

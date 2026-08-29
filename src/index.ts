@@ -39,7 +39,7 @@ import {
 } from "./lib/sheetsClient.js";
 import { buildUpdates, type OutcomeUpdate } from "./lib/updates.js";
 import { matchPastedUrls } from "./lib/urlMatch.js";
-import { parseAnswerNumber } from "./lib/answers.js";
+import { parseAnswerNumber, parseAnswerNumbers } from "./lib/answers.js";
 import { partitionByRowIntegrity } from "./lib/rowIntegrity.js";
 import {
   savePendingWrites,
@@ -236,6 +236,7 @@ program
             outcome: "failed",
             existingNote: target.row.note,
             failureReason,
+            failureCategory: error instanceof NavigationError ? error.category : "unknown",
           });
           expectedCompanyName.set(target.row.rowIndex, target.row.companyName);
           await page.close();
@@ -290,6 +291,8 @@ program
       }
 
       let skippedInRetry = 0;
+      // 自動判定では送信できたか分からなかった企業。閉じる前にURLを控え、後でまとめて人に聞く。
+      const uncertainEntries: { update: OutcomeUpdate; companyName: string; url: string }[] = [];
       for (const [index, entry] of opened.entries()) {
         const pastedUrl = pastedUrlByIndex.get(index);
 
@@ -344,27 +347,67 @@ program
               console.warn(`uncertain-outcomes-logの書き込みに失敗しました: ${String(error)}`);
             }
           }
-          outcomeUpdates.push({
+          const update: OutcomeUpdate = {
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome,
             existingNote: entry.target.row.note,
             formUrl: entry.discoveredUrl,
             failureReason,
-          });
+          };
+          outcomeUpdates.push(update);
+          if (outcome === "uncertain") {
+            uncertainEntries.push({
+              update,
+              companyName: entry.target.row.companyName,
+              url: entry.page.url(),
+            });
+          }
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
         } catch (error) {
           console.warn(`[${entry.target.row.companyName}] 送信結果の確認に失敗しました: ${String(error)}`);
-          outcomeUpdates.push({
+          const update: OutcomeUpdate = {
             rowIndex: entry.target.row.rowIndex,
             attemptNumber: entry.target.attemptNumber,
             outcome: "uncertain",
             existingNote: entry.target.row.note,
             formUrl: entry.discoveredUrl,
+          };
+          outcomeUpdates.push(update);
+          uncertainEntries.push({
+            update,
+            companyName: entry.target.row.companyName,
+            url: entry.formUrl,
           });
           expectedCompanyName.set(entry.target.row.rowIndex, entry.target.row.companyName);
         } finally {
           await entry.page.close().catch(() => {});
+        }
+      }
+
+      // 判定できなかった回にそのまま送信日を入れると、送っていない企業が14日後に次の回へ進んでしまう。
+      // 少数派(送信できていない方)だけ番号で答えてもらい、その場で確定させる。
+      if (uncertainEntries.length > 0) {
+        console.log(`\n送信できたか自動で判定できなかった企業(${uncertainEntries.length}件):`);
+        uncertainEntries.forEach((item, i) =>
+          console.log(`  ${i + 1}. ${item.companyName}\n     ${item.url}`),
+        );
+        const answer = await rl.question(
+          "\n実際には送信できていない企業の番号を入力してください(複数はカンマ区切り、すべて送信できていればEnter): ",
+        );
+        let markedUnsent = 0;
+        for (const number of parseAnswerNumbers(answer)) {
+          const item = uncertainEntries[number - 1];
+          if (!item) {
+            console.log(`  ${number} は一覧にない番号のため無視しました`);
+            continue;
+          }
+          item.update.outcome = "failed";
+          item.update.failureReason = "送信失敗";
+          markedUnsent++;
+        }
+        if (markedUnsent > 0) {
+          console.log(`  ${markedUnsent}件を「送信失敗」として記録します(送信日は入れません)`);
         }
       }
 

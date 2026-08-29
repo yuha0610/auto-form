@@ -38,12 +38,14 @@ export function classifyGotoError(error: unknown): GotoErrorClassification {
 
 export class NavigationError extends Error {
   readonly label: string;
+  readonly category: GotoErrorCategory;
   readonly cause: unknown;
 
-  constructor(label: string, cause: unknown) {
-    super(label);
+  constructor(classification: GotoErrorClassification, cause: unknown) {
+    super(classification.label);
     this.name = "NavigationError";
-    this.label = label;
+    this.label = classification.label;
+    this.category = classification.category;
     this.cause = cause;
   }
 }
@@ -79,7 +81,7 @@ export async function gotoWithRetry(
   } catch (error) {
     const classification = classifyGotoError(error);
     if (!classification.retryable) {
-      throw new NavigationError(classification.label, error);
+      throw new NavigationError(classification, error);
     }
 
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
@@ -89,7 +91,7 @@ export async function gotoWithRetry(
       await waitForFormReady(page, formReadyTimeoutMs);
     } catch (retryError) {
       const retryClassification = classifyGotoError(retryError);
-      throw new NavigationError(retryClassification.label, retryError);
+      throw new NavigationError(retryClassification, retryError);
     }
   }
 }
