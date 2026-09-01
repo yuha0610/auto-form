@@ -24,6 +24,7 @@
     "rescan:form-missing": "tsx scripts/rescanFormMissing.ts",
     "cleanup:notes": "tsx scripts/cleanupNotes.ts",
     "list:uncertain": "tsx scripts/listUncertain.ts",
+    "check:duplicates": "tsx scripts/checkDuplicates.ts",
     "record": "tsx scripts/record.ts"
   },
   "dependencies": {
