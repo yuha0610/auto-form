@@ -52,7 +52,8 @@ test("extractCompanyCoreName: ㈱を除去する", () => {
 });
 
 test("extractCompanyCoreName: 記号やスペースを除去する", () => {
-  expect(extractCompanyCoreName("株式会社 Do＆Do.")).toBe("do＆do");
+  // アンパサンドはNFKCで半角に寄るため、全角で書かれていても "&" になる
+  expect(extractCompanyCoreName("株式会社 Do＆Do.")).toBe("do&do");
 });
 
 test("extractCompanyCoreName: 社名の内側にある英字の法人格トークンは除去しない", () => {
@@ -67,4 +68,37 @@ test("extractCompanyCoreName: 独立した法人格トークンは今まで通�
   expect(extractCompanyCoreName("Sample Inc")).toBe("sample");
   expect(extractCompanyCoreName("Sample, Inc.")).toBe("sample");
   expect(extractCompanyCoreName("Sample Co., Ltd.")).toBe("sample");
+});
+
+test("extractCompanyCoreName: 全角数字を半角と同じコア名にする", () => {
+  // シートに「株式会社12薬局」と「株式会社１２薬局」が別行で並び、重複判定を通り抜けていた
+  expect(extractCompanyCoreName("株式会社１２薬局")).toBe("12薬局");
+  expect(extractCompanyCoreName("株式会社１２薬局")).toBe(extractCompanyCoreName("株式会社12薬局"));
+});
+
+test("extractCompanyCoreName: 全角英字を半角と同じコア名にする", () => {
+  expect(extractCompanyCoreName("株式会社３DC")).toBe("3dc");
+  expect(extractCompanyCoreName("株式会社きゃりこん．ｃｏｍ")).toBe(
+    extractCompanyCoreName("株式会社きゃりこん.com"),
+  );
+});
+
+test("extractCompanyCoreName: 中黒を区切り記号として除去する", () => {
+  expect(extractCompanyCoreName("株式会社サイト・ファクト")).toBe("サイトファクト");
+  expect(extractCompanyCoreName("株式会社サイト・ファクト")).toBe(
+    extractCompanyCoreName("株式会社サイト-ファクト"),
+  );
+});
+
+test("extractCompanyCoreName: 半角カタカナを全角と同じコア名にする", () => {
+  expect(extractCompanyCoreName("ｼｽﾃﾑ株式会社")).toBe("システム");
+});
+
+test("extractCompanyCoreName: 長音符はカタカナの一部として残す", () => {
+  // 中黒を落とすついでに長音符まで落とすと「コーヒー」が「コヒ」になり別会社と衝突する
+  expect(extractCompanyCoreName("株式会社コーヒー")).toBe("コーヒー");
+});
+
+test("extractCompanyCoreName: アンパサンドは幅が違っても同じコア名にする", () => {
+  expect(extractCompanyCoreName("株式会社Do＆Do")).toBe(extractCompanyCoreName("株式会社Do&Do"));
 });

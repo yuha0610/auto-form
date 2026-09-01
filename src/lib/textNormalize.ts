@@ -13,7 +13,8 @@ export function normalizeCellText(value: string): string {
     .trim();
 }
 
-const JAPANESE_SUFFIX_PATTERN = "株式会社|有限会社|合同会社|㈱";
+// NFKCは㈱を「(株)」、㈲を「(有)」に展開するため、展開後の表記もここで受ける。
+const JAPANESE_SUFFIX_PATTERN = "株式会社|有限会社|合同会社|㈱|㈲|\\(株\\)|\\(有\\)";
 const LATIN_SUFFIX_PATTERN =
   "Co\\.,\\s?Ltd\\.?|K\\.K\\.|Corporation|Corp\\.|Inc\\.|Inc|Ltd\\.|Ltd";
 /**
@@ -25,14 +26,25 @@ const CORPORATE_SUFFIX_REGEX = new RegExp(
   `${JAPANESE_SUFFIX_PATTERN}|(?<![A-Za-z])(?:${LATIN_SUFFIX_PATTERN})(?![A-Za-z])`,
   "gi",
 );
-const NON_CORE_CHARS_REGEX = /[^a-z0-9＆぀-ヿ㐀-鿿]/gi;
+/**
+ * コア名に残す文字。カタカナ範囲(U+3040-U+30FF)から中黒(U+30FB)だけを外している。
+ * 中黒は「サイト・ファクト」のような区切りにしか使われず、残すと
+ * 「サイト-ファクト」と別のコア名になってしまう。長音符(U+30FC)は
+ * 「コーヒー」のように語の一部なので残す。
+ */
+const NON_CORE_CHARS_REGEX = /[^a-z0-9&぀-ヺー-ヿ㐀-鿿]/gi;
 
 /**
  * 企業名から法人格トークン(株式会社/Inc./Ltd.等、前後どちらの位置でも)と
  * 記号・スペースを除去し、小文字化した「コア名」を返す。
  * 表記ゆれ(法人格の有無・位置違い)による重複候補の突き合わせに使う。
+ *
+ * 全角英数字・半角カタカナはNFKCで半角/全角に寄せてから比較する。
+ * これを挟まないと「株式会社１２薬局」の全角数字が丸ごと落ちて
+ * 「薬局」になり、「株式会社12薬局」と別企業として重複判定を通り抜ける。
  */
 export function extractCompanyCoreName(name: string): string {
-  const withoutSuffix = name.replace(CORPORATE_SUFFIX_REGEX, "");
+  const normalized = name.normalize("NFKC");
+  const withoutSuffix = normalized.replace(CORPORATE_SUFFIX_REGEX, "");
   return withoutSuffix.replace(NON_CORE_CHARS_REGEX, "").toLowerCase();
 }

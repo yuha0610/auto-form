@@ -8,5 +8,25 @@
     "coreName": "halu",
     "merge": false,
     "notes": "ha-lu.jpはショートドラマ制作の株式会社HA-LU、ikoudesign.comはインクルーシブデザイン製品IKOUの株式会社Haluであり、業種もドメインも異なる別会社(Opus判定, confidence: high)"
+  },
+  {
+    "coreName": "12薬局",
+    "merge": true,
+    "notes": "行1208・行1317ともフォームURLが https://12pharmacy.co.jp/contact/ で一致。全角/半角の数字違いだけの同一企業(Opus判定, confidence: high)"
+  },
+  {
+    "coreName": "3dc",
+    "merge": true,
+    "notes": "行158・行1087ともドメインが 3dc.co.jp で一致(英語版/日本語版のcontactページ違い)。全角/半角の数字違いだけの同一企業(Opus判定, confidence: high)"
+  },
+  {
+    "coreName": "サイトファクト",
+    "merge": true,
+    "notes": "行323・行958ともドメインが cytofacto.com で一致し、フォームURLも https://www.cytofacto.com/contact/ で同一。中黒とハイフンの表記違いだけの同一企業(Opus判定, confidence: high)"
+  },
+  {
+    "coreName": "きゃりこんcom",
+    "merge": true,
+    "notes": "行114のフォームURLと行1132の企業URLが https://form.run/@caricon-N2XLXXd85NrYcJGrFZfL で完全一致。全角/半角の表記違いだけの同一企業(Opus判定, confidence: high)"
   }
 ]
