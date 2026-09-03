@@ -11,3 +11,4 @@ playwright-report/
 data/missed-fields-log.jsonl
 data/uncertain-outcomes-log.jsonl
 data/form-rescan-results.json
+data/load-failed-rescan-results.json

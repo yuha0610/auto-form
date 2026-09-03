@@ -11,10 +11,24 @@ import { parseSheetRows } from "../src/lib/sheetData.js";
 import { findContactLink, type ContactLink } from "../src/lib/formDiscovery.js";
 import { planRescanWrites } from "../src/lib/formRescan.js";
 import { gotoWithRetry } from "../src/lib/navigation.js";
+import { NEVER_SEND_MARKER } from "../src/lib/targetSelection.js";
 import { COLUMNS, type SheetRowData } from "../src/types.js";
 
-const CACHE_PATH = "data/form-rescan-results.json";
-const FORM_MISSING_MARKER = "フォーム無";
+/**
+ * 再スキャンできるスキップ印。印ごとに結果キャッシュを分けないと、
+ * 別の印のスキャン結果を「済み」と誤認して丸ごと飛ばしてしまう。
+ */
+const RESCAN_MARKERS: Record<string, { cachePath: string; npmScript: string }> = {
+  "フォーム無": {
+    cachePath: "data/form-rescan-results.json",
+    npmScript: "rescan:form-missing",
+  },
+  "読み込み失敗(要確認)": {
+    cachePath: "data/load-failed-rescan-results.json",
+    npmScript: "rescan:load-failed",
+  },
+};
+const DEFAULT_MARKER = "フォーム無";
 const CONCURRENCY = 4;
 const PAGE_TIMEOUT_MS = 25_000;
 
@@ -27,13 +41,13 @@ interface ScanResult {
   error: string | null;
 }
 
-function loadCache(): ScanResult[] {
-  if (!existsSync(CACHE_PATH)) return [];
-  return JSON.parse(readFileSync(CACHE_PATH, "utf-8")) as ScanResult[];
+function loadCache(cachePath: string): ScanResult[] {
+  if (!existsSync(cachePath)) return [];
+  return JSON.parse(readFileSync(cachePath, "utf-8")) as ScanResult[];
 }
 
-function saveCache(results: ScanResult[]): void {
-  writeFileSync(CACHE_PATH, `${JSON.stringify(results, null, 1)}\n`, "utf-8");
+function saveCache(cachePath: string, results: ScanResult[]): void {
+  writeFileSync(cachePath, `${JSON.stringify(results, null, 1)}\n`, "utf-8");
 }
 
 async function scanOne(browser: Browser, row: SheetRowData): Promise<ScanResult> {
@@ -59,7 +73,11 @@ async function scanOne(browser: Browser, row: SheetRowData): Promise<ScanResult>
  * 複数のタブで並行してスキャンする。
  * 1社ごとに結果をファイルへ書き出し、途中で止まっても再開できるようにする。
  */
-async function scanAll(rows: SheetRowData[], done: ScanResult[]): Promise<ScanResult[]> {
+async function scanAll(
+  rows: SheetRowData[],
+  done: ScanResult[],
+  cachePath: string,
+): Promise<ScanResult[]> {
   const results = [...done];
   const scanned = new Set(done.map((result) => result.rowIndex));
   const queue = rows.filter((row) => !scanned.has(row.rowIndex));
@@ -75,7 +93,7 @@ async function scanAll(rows: SheetRowData[], done: ScanResult[]): Promise<ScanRe
       while (next < queue.length) {
         const row = queue[next++];
         results.push(await scanOne(browser, row));
-        saveCache(results);
+        saveCache(cachePath, results);
         if (results.length % 25 === 0) {
           console.log(`  ${results.length}/${rows.length}社`);
         }
@@ -99,6 +117,14 @@ const KIND_LABEL: Record<ContactLink["kind"], string> = {
 async function main(): Promise<void> {
   const apply = process.argv.includes("--apply");
   const fromFile = process.argv.includes("--from-file");
+  const markerIndex = process.argv.indexOf("--marker");
+  const marker = markerIndex === -1 ? DEFAULT_MARKER : process.argv[markerIndex + 1];
+  const config = RESCAN_MARKERS[marker];
+  if (!config) {
+    throw new Error(
+      `--marker に指定できるのは次のいずれかです: ${Object.keys(RESCAN_MARKERS).join(" / ")}`,
+    );
+  }
 
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) throw new Error("環境変数 GOOGLE_SHEET_ID が設定されていません");
@@ -108,17 +134,22 @@ async function main(): Promise<void> {
   const rows = parseSheetRows(raw);
 
   const targets = rows.filter(
-    (row) => row.note.includes(FORM_MISSING_MARKER) && row.companyUrl.trim() !== "",
+    (row) =>
+      row.note.includes(marker) &&
+      // 「送信NG」は理由を問わず対象にしない
+      !row.note.includes(NEVER_SEND_MARKER) &&
+      row.companyUrl.trim() !== "" &&
+      row.companyUrl.trim() !== "なし",
   );
-  console.log(`「${FORM_MISSING_MARKER}」かつ企業URLがある行: ${targets.length}社`);
+  console.log(`「${marker}」かつ企業URLがある行: ${targets.length}社`);
 
-  const cached = loadCache();
+  const cached = loadCache(config.cachePath);
   if (fromFile) {
-    console.log(`${CACHE_PATH} から${cached.length}社分の結果を読み込んだ(再スキャンなし)`);
+    console.log(`${config.cachePath} から${cached.length}社分の結果を読み込んだ(再スキャンなし)`);
   } else if (cached.length > 0) {
-    console.log(`${CACHE_PATH} に${cached.length}社分の結果がある。残りだけスキャンする`);
+    console.log(`${config.cachePath} に${cached.length}社分の結果がある。残りだけスキャンする`);
   }
-  const results = fromFile ? cached : await scanAll(targets, cached);
+  const results = fromFile ? cached : await scanAll(targets, cached, config.cachePath);
 
   const rowByIndex = new Map(targets.map((row) => [row.rowIndex, row]));
   const writes: { rowIndex: number; columnName: string; value: string }[] = [];
@@ -136,7 +167,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const planned = planRescanWrites(row, result.link);
+    const planned = planRescanWrites(row, result.link, marker);
     if (!planned) {
       stillMissing.push(result);
       continue;
@@ -175,7 +206,7 @@ async function main(): Promise<void> {
 
   if (!apply) {
     console.log(`\n(--apply なしのためシートへの書き込みはしていない)`);
-    console.log(`確認した内容のまま反映するには: npm run rescan:form-missing -- --apply --from-file`);
+    console.log(`確認した内容のまま反映するには: npm run ${config.npmScript} -- --apply --from-file`);
     return;
   }
   if (writes.length === 0) {

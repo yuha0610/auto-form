@@ -27,16 +27,32 @@ export interface RescanWrites {
   note: string;
 }
 
-const FORM_MISSING_MARKER = "フォーム無";
-
 /**
  * 再スキャンの結果から、その行に書き込む内容を決める。
- * 見つからなかった場合は「フォーム無」を残したいので null を返す。
+ * `marker` には再スキャンの対象になった印(「フォーム無」「読み込み失敗(要確認)」など)を渡す。
+ * 見つからなかった場合はその印を残したいので null を返す。
  */
-export function planRescanWrites(row: SheetRowData, link: ContactLink | null): RescanWrites | null {
+/**
+ * 人が手で入れた値として尊重すべきか判定する。
+ * 「y」「なし」のような形になっていない値を守ると、開けないフォームURLのまま
+ * 送信対象に戻ってしまうので、そういう値は再スキャンの結果で上書きする。
+ */
+function looksLikeUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+export function planRescanWrites(
+  row: SheetRowData,
+  link: ContactLink | null,
+  marker: string,
+): RescanWrites | null {
   if (!link) return null;
 
-  const cleared = removeNoteMarker(row.note, FORM_MISSING_MARKER);
+  const cleared = removeNoteMarker(row.note, marker);
 
   if (link.kind === "google-form") {
     // 自動入力できないので、送信対象から外れる印に差し替える
@@ -46,12 +62,12 @@ export function planRescanWrites(row: SheetRowData, link: ContactLink | null): R
   if (link.kind === "email") {
     const writes: RescanWrites = { kind: link.kind, note: appendNote(cleared, "メール") };
     // 人が調べて入れたアドレスを再スキャンの結果で潰さない
-    if (row.email.trim() === "") writes.email = link.address;
+    if (!looksLikeEmail(row.email)) writes.email = link.address;
     return writes;
   }
 
   const writes: RescanWrites = { kind: link.kind, note: cleared };
   // 人が手で貼ったフォームURLを再スキャンの結果で潰さない
-  if (row.formUrl.trim() === "") writes.formUrl = link.url;
+  if (!looksLikeUrl(row.formUrl)) writes.formUrl = link.url;
   return writes;
 }
