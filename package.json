@@ -20,6 +20,7 @@
     "apply:signals": "tsx scripts/applySignals.ts",
     "match:signal-sweep": "tsx scripts/matchSignalSweep.ts",
     "screen:starcla": "tsx scripts/screenStarcla.ts",
+    "screen:listed": "tsx scripts/screenListed.ts",
     "mark:skip": "tsx scripts/markSkip.ts",
     "rescan:form-missing": "tsx scripts/rescanFormMissing.ts",
     "cleanup:notes": "tsx scripts/cleanupNotes.ts",
