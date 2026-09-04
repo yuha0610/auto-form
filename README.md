@@ -59,6 +59,7 @@ npm run playwright:install
 | `npm run screen:non-startup` | 非スタートアップと判定した行を削除 | `--apply` で**行を削除** |
 | `npm run screen:starcla` | スタクラ掲載企業を「送信NG」にする | `--apply` で書き込み |
 | `npm run screen:listed` | 上場企業を「送信NG」にする | `--apply` で書き込み |
+| `npm run screen:talent` | 芸能・モデル・タレント業を「送信NG」にする | `--apply` で書き込み |
 | `npm run mark:skip` | 貼ったURLの企業にスキップ印を付ける | `--apply` で書き込み |
 | `npm run rescan:form-missing` | 「フォーム無」の企業を再スキャンして送信対象に戻す | `--apply` で書き込み |
 | `npm run rescan:load-failed` | 「読み込み失敗(要確認)」の企業を再スキャンして送信対象に戻す | `--apply` で書き込み |

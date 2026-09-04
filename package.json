@@ -21,6 +21,7 @@
     "match:signal-sweep": "tsx scripts/matchSignalSweep.ts",
     "screen:starcla": "tsx scripts/screenStarcla.ts",
     "screen:listed": "tsx scripts/screenListed.ts",
+    "screen:talent": "tsx scripts/screenTalent.ts",
     "mark:skip": "tsx scripts/markSkip.ts",
     "rescan:form-missing": "tsx scripts/rescanSkipped.ts --marker \"フォーム無\"",
     "rescan:load-failed": "tsx scripts/rescanSkipped.ts --marker \"読み込み失敗(要確認)\"",
