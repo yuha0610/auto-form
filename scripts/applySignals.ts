@@ -21,6 +21,10 @@ import {
 } from "../src/lib/signalDetection.js";
 import { matchPageContent as matchCompetitorPageContent, resolveOverviewUrl } from "../src/lib/competitorScreening.js";
 import { matchPageContent as matchNonStartupPageContent } from "../src/lib/nonStartupScreening.js";
+import {
+  matchTalentCompanyName,
+  matchTalentPageContent,
+} from "../src/lib/talentScreening.js";
 import { extractCompanyCoreName } from "../src/lib/textNormalize.js";
 
 const RESULTS_PATH = "data/signal-research-results.json";
@@ -71,6 +75,11 @@ async function fetchText(url: string): Promise<string> {
 async function passesContentScreening(
   row: NewCompanyRow,
 ): Promise<{ ok: true; screened: boolean } | { ok: false; reason: string }> {
+  const talentNameKeyword = matchTalentCompanyName(row.companyName);
+  if (talentNameKeyword) {
+    return { ok: false, reason: `社名に「${talentNameKeyword}」(タレント業)` };
+  }
+
   if (!row.companyUrl) return { ok: true, screened: false };
 
   try {
@@ -94,6 +103,11 @@ async function passesContentScreening(
     const nonStartupMatch = matchNonStartupPageContent(combined);
     if (nonStartupMatch) {
       return { ok: false, reason: `ページ内容に「${nonStartupMatch.keyword}」(非スタートアップ)` };
+    }
+
+    const talentMatch = matchTalentPageContent(combined);
+    if (talentMatch) {
+      return { ok: false, reason: `ページ内容に「${talentMatch.keyword}」(タレント業)` };
     }
 
     return { ok: true, screened: true };
